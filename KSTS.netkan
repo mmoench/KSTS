@@ -11,12 +11,12 @@
         "use_source_archive": true
     },
     "resources": {
-        "homepage": "http://forum.kerbalspaceprogram.com/index.php?/topic/TO-BE-DEFINED"
+        "homepage": "http://forum.kerbalspaceprogram.com/index.php?/topic/148071-113-kerbal-space-transport-system/"
     },
     "install" : [
         {
             "find" : "KSTS",
             "install_to" : "GameData"
         }
-    ],
+    ]
 }
