@@ -114,7 +114,7 @@ namespace KSTS
                 if (KSTS.partDictionary == null)
                 {
                     KSTS.partDictionary = new Dictionary<string, AvailablePart>();
-                    foreach (AvailablePart part in PartLoader.Instance.parts)
+                    foreach (AvailablePart part in PartLoader.LoadedPartsList)
                     {
                         if (KSTS.partDictionary.ContainsKey(part.name.ToString()))
                         {
@@ -129,7 +129,7 @@ namespace KSTS
                 if (KSTS.resourceDictionary == null)
                 {
                     KSTS.resourceDictionary = new Dictionary<string, PartResourceDefinition>();
-                    foreach (PartResourceDefinition resourceDefinition in PartResourceLibrary.Instance.resourceDefinitions.ToList())
+                    foreach (PartResourceDefinition resourceDefinition in PartResourceLibrary.Instance.resourceDefinitions)
                     {
                         KSTS.resourceDictionary.Add(resourceDefinition.name.ToString(), resourceDefinition);
                     }

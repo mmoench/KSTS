@@ -24,6 +24,7 @@ namespace KSTS
         public List<string> crewToDeliver = null;  // Names of kerbals to transport to the target-vessel
         public List<string> crewToCollect = null;  // Names of kerbals to bring back from the target-vessel
         public Dictionary<string, double> resourcesToDeliver = null; // ResourceName => ResourceAmount
+        public string flagURL = null;              // The flag to be used for newly created vessels
 
         public MissionProfile GetProfile()
         {
@@ -52,7 +53,7 @@ namespace KSTS
             return path;
         }
 
-        public static Mission CreateDeployment(string shipName, ShipTemplate template, Orbit orbit, MissionProfile profile)
+        public static Mission CreateDeployment(string shipName, ShipTemplate template, Orbit orbit, MissionProfile profile, List<string> crew, string flagURL)
         {
             Mission mission = new Mission();
             mission.missionType = MissionType.DEPLOY;
@@ -61,6 +62,8 @@ namespace KSTS
             mission.shipName = shipName;
             mission.profileName = profile.profileName;
             mission.eta = Planetarium.GetUniversalTime() + profile.missionDuration;
+            mission.crewToDeliver = crew; // The crew we want the new vessel to start with.
+            mission.flagURL = flagURL;
 
             return mission;
         }
@@ -166,8 +169,23 @@ namespace KSTS
             return false;
         }
 
+        // Helper function for building an ordered list of parts which are attached to the given root-part. The resulting
+        // List is passed by reference and also returend.
+        private List<Part> FindAndAddAttachedParts(Part p,ref List<Part> list)
+        {
+            if (list == null) list = new List<Part>();
+            if (list.Contains(p)) return list;
+            list.Add(p);
+            foreach (AttachNode an in p.attachNodes)
+            {
+                if (an.attachedPart == null || list.Contains(an.attachedPart)) continue;
+                FindAndAddAttachedParts(an.attachedPart,ref list);
+            }
+            return list;
+        }
+
         // Creates a new ship with the given parameters for this mission. The code however seems unnecessarily convoluted and
-        // I don't fully understand all of it, but it was the only working example I could find on the internet.
+        // error-prone, but there are no better examples available on the internet.
         private void CreateShip()
         {
             try
@@ -179,18 +197,65 @@ namespace KSTS
                 // The ShipConstruct-object can only savely exist while not in flight, otherwise it will spam Null-Pointer Exceptions every tick:
                 if (HighLogic.LoadedScene == GameScenes.FLIGHT) throw new Exception("unable to run CreateShip while in flight");
 
+                // Load the parts form the saved vessel:
                 ShipConstruct shipConstruct = ShipConstruction.LoadShip(shipTemplateFilename);
                 ProtoVessel dummyProto = new ProtoVessel(new ConfigNode(), null);
                 Vessel dummyVessel = new Vessel();
-                dummyVessel.parts = shipConstruct.parts;
                 dummyProto.vesselRef = dummyVessel;
+
+                // In theory it should be enough to simply copy the parts from the ShipConstruct to the ProtoVessel, but
+                // this only seems to work when the saved vessel starts with the root-part and is designed top down from there.
+                // It seems that the root part has to be the first part in the ProtoVessel's parts-list and all other parts have
+                // to be listed in sequence radiating from the root part (eg 1=>2=>R<=3<=4 should be R,2,1,3,4). If the parts
+                // are not in the correct order, their rotation seems to get messed up or they are attached to the wrong
+                // attachmet-nodes, which is why we have to re-sort the parts with our own logic here.
+                // This part of the code is experimental however and only based on my own theories and observations about KSP's vessels.
+                Part rootPart = null;
+                foreach (Part p in shipConstruct.parts)
+                {
+                    if (p.parent == null) { rootPart = p; break; }
+                }
+                List<Part> pList = null;
+                dummyVessel.parts = FindAndAddAttachedParts(rootPart, ref pList); // Find all parts which are directly attached to the root-part and add them in order.
+
+                // Handle Subassemblies which are attached by surface attachment-nodes:
+                bool handleSurfaceAttachments = true;
+                while (dummyVessel.parts.Count < shipConstruct.parts.Count)
+                {
+                    int processedParts = 0;
+                    foreach (Part p in shipConstruct.parts)
+                    {
+                        if (dummyVessel.parts.Contains(p)) continue;
+                        if (handleSurfaceAttachments)
+                        {
+                            // Check if the part is attached by a surface-node:
+                            if (p.srfAttachNode != null && dummyVessel.parts.Contains(p.srfAttachNode.attachedPart))
+                            {
+                                // Add this surface attached part and all the sub-parts:
+                                dummyVessel.parts = FindAndAddAttachedParts(p, ref dummyVessel.parts);
+                                processedParts++;
+                            }
+                        }
+                        else
+                        {
+                            // Simply copy this part:
+                            dummyVessel.parts.Add(p);
+                        }
+                    }
+                    if (processedParts == 0)
+                    {
+                        // If there are still unprocessed parts, just throw them in the list during the next iteration,
+                        // this should not happen but we don't want to end up in an endless loop:
+                        handleSurfaceAttachments = false;
+                    }
+                }
 
                 // Initialize all parts:
                 uint missionID = (uint)Guid.NewGuid().GetHashCode();
                 uint launchID = HighLogic.CurrentGame.launchID++;
-                foreach (Part p in shipConstruct.parts)
+                foreach (Part p in dummyVessel.parts)
                 {
-                    p.flagURL = HighLogic.CurrentGame.flagURL;
+                    p.flagURL = flagURL == null ? HighLogic.CurrentGame.flagURL : flagURL;
                     p.missionID = missionID;
                     p.launchID = launchID;
                     p.temperature = 1.0;
@@ -212,11 +277,12 @@ namespace KSTS
 
                     dummyProto.protoPartSnapshots.Add(new ProtoPartSnapshot(p, dummyProto));
                 }
+
+                // Store the parts in Config-Nodes:
                 foreach (ProtoPartSnapshot p in dummyProto.protoPartSnapshots)
                 {
                     p.storePartRefs();
                 }
-
                 List<ConfigNode> partNodesL = new List<ConfigNode>();
                 foreach (var snapShot in dummyProto.protoPartSnapshots)
                 {
@@ -232,6 +298,13 @@ namespace KSTS
                 ProtoVessel pv = HighLogic.CurrentGame.AddVessel(protoVesselNode);
                 Debug.Log("[KSTS] deployed new ship '" + shipName.ToString() + "' as '" + pv.vesselRef.id.ToString() + "'");
                 ScreenMessages.PostScreenMessage("Vessel '" + shipName.ToString() + "' deployed"); // Popup message to notify the player
+                Vessel newVessel = FlightGlobals.Vessels.Find(x => x.id == pv.vesselID);
+
+                // Maybe add the initial crew to the vessel:
+                if (crewToDeliver != null && crewToDeliver.Count > 0 && newVessel != null)
+                {
+                    foreach (string kerbonautName in crewToDeliver) TargetVessel.AddCrewMember(newVessel, kerbonautName);
+                }
             }
             catch (Exception e)
             {

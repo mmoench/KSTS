@@ -20,6 +20,12 @@ namespace KSTS
             this.inclinationSelector = new GUIRichValueSelector("Inclination", 0, "°", -180, 180, true, "+0.00;-0.00");
         }
 
+        public static string FormatAltitude(double altitude)
+        {
+            if (altitude >= 1000000) return (altitude/1000).ToString("#,##0km");
+            else return altitude.ToString("#,##0m");
+        }
+
         public static Orbit CreateSimpleOrbit(CelestialBody body, double altitude, double inclination)
         {
             return GUIOrbitEditor.CreateOrbit(inclination, 0, altitude + body.Radius, 0, 0, 0, 0, body);

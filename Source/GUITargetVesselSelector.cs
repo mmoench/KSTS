@@ -61,7 +61,7 @@ namespace KSTS
                     descriptions.Add("<color=#F9FA86><b>" + vessel.vesselName + "</b></color><color=#FFFFFF>");
 
                     // Orbital-Parameters:
-                    descriptions.Add("<b>Apoapsis:</b> " + vessel.orbit.ApA.ToString("#,##0m") + ", <b>Periapsis:</b> " + vessel.orbit.PeA.ToString("#,##0m") + ", <b>MET:</b> " + GUI.FormatDuration(vessel.missionTime));
+                    descriptions.Add("<b>Apoapsis:</b> " + GUIOrbitEditor.FormatAltitude(vessel.orbit.ApA) + ", <b>Periapsis:</b> " + GUIOrbitEditor.FormatAltitude(vessel.orbit.PeA) + ", <b>MET:</b> " + GUI.FormatDuration(vessel.missionTime));
 
                     // Docking-Port Types:
                     List<string> dockingPortsTranslated = new List<string>();

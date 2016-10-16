@@ -84,8 +84,7 @@ namespace KSTS
                     {
                         // We manipulate resources of unloaded vessels in "AddResources" below, which does not update "protoResource.amount", so we have
                         // to read the config-node here:
-                        if (!protoResource.resourceValues.HasValue("amount")) continue;
-                        double free = protoResource.maxAmount - Double.Parse(protoResource.resourceValues.GetValue("amount"));
+                        double free = protoResource.maxAmount - protoResource.amount;
                         if (free < 0.01) continue; // Too small amounts would get shown as 0.00, which would be confusing, so we ignore them just like 0.
                         if (!KSTS.resourceDictionary.ContainsKey(protoResource.resourceName)) continue;
                         PartResourceDefinition resource = KSTS.resourceDictionary[protoResource.resourceName];
@@ -148,20 +147,18 @@ namespace KSTS
                     foreach (ProtoPartResourceSnapshot protoResource in protoPart.resources)
                     {
                         if (protoResource.resourceName != resourceName) continue;
-                        if (!protoResource.resourceValues.HasValue("amount")) throw new Exception("proto-resource has no amount");
-                        // "protoResource.amount" is a property which can only be read, and isn't updated, so we have to read and write from/to the config-node directly:
-                        double partAmount = Double.Parse(protoResource.resourceValues.GetValue("amount")); 
+                        double partAmount = protoResource.amount; 
                         double capacity = protoResource.maxAmount - partAmount;
                         if (capacity <= 0) continue;
                         if (capacity > amountToAdd)
                         {
                             if (capacity - amountToAdd < 0.01) amountToAdd = capacity; // Just to correct some irregularities with floats
-                            protoResource.resourceValues.SetValue("amount", (partAmount + amountToAdd).ToString());
+                            protoResource.amount = partAmount + amountToAdd;
                             amountToAdd = 0;
                         }
                         else
                         {
-                            protoResource.resourceValues.SetValue("amount", (partAmount + capacity).ToString());
+                            protoResource.amount = partAmount + capacity;
                             amountToAdd -= capacity;
                         }
                     }

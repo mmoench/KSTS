@@ -95,10 +95,10 @@ namespace KSTS
                 // Sum up all the parts resources:
                 double resourceCost = 0;
                 double resourceCostMax = 0;
-                foreach (PartResource resource in part.Resources.list)
+                foreach (PartResource resource in part.Resources)
                 {
                     PartResourceDefinition resourceDefinition = null;
-                    if (!KSTS.resourceDictionary.TryGetValue(resource.resourceName.ToString(), out resourceDefinition)) Debug.LogError("[KSTS] GetVesselStats(): resource '" + resource.resourceName.ToString() + "' not found in dictionary");
+                    if (!KSTS.resourceDictionary.TryGetValue(resource.resourceName.ToString(), out resourceDefinition)) Debug.LogError("[KSTS] RecordingVesselStats.GetStats(): resource '" + resource.resourceName.ToString() + "' not found in dictionary");
                     else
                     {
                         // Cost:
@@ -129,7 +129,7 @@ namespace KSTS
 
                 // The cost of the part is only available in the AvailablePart-class:
                 AvailablePart availablePart = null;
-                if (!KSTS.partDictionary.TryGetValue(partName, out availablePart)) Debug.LogError("[KSTS] GetVesselStats(): part '" + partName + "' not found in dictionary");
+                if (!KSTS.partDictionary.TryGetValue(partName, out availablePart)) Debug.LogError("[KSTS] RecordingVesselStats.GetStats(): part '" + partName + "' not found in dictionary");
                 else
                 {
                     // The cost of the part already includes the resource-costs, when completely filled:
@@ -156,6 +156,7 @@ namespace KSTS
 
         // Recursively finds all detachable assemblies, which are attached as children to the given part and
         // stores them in "payloadAssemblies":
+        // TODO: Maybe we should look at the direction dockung-ports and decouples are facing. If they stay on the ship, thes should not count as payload, just as seperators should not get counted as well.
         protected PayloadAssembly FindPayloadAssemblies(FlightRecording recording, Part part, Part parent, List<string> crewedPartIds)
         {
             PayloadAssembly assembly = new PayloadAssembly();
@@ -211,7 +212,7 @@ namespace KSTS
             if (KSTS.partDictionary.ContainsKey(partName))
             {
                 partCost += KSTS.partDictionary[partName].cost; // Includes resource-costs
-                foreach (PartResource resource in part.Resources.list)
+                foreach (PartResource resource in part.Resources)
                 {
                     // Determine the real value of the part with the current amount of resources inside:
                     if (!KSTS.resourceDictionary.ContainsKey(resource.resourceName)) continue;
@@ -539,6 +540,11 @@ namespace KSTS
         // during a running recording):
         public static void CollectGarbage()
         {
+            // With KSP 1.2 our onLoad method is called before the FlightGlobals are filled, which would result in removing all
+            // active recordings after loading a savegame. This workaround isn't really clean, but I don't know how to check if
+            // the FlightGlobals are loaded or not.
+            if (FlightGlobals.Vessels.Count == 0) return;
+
             // Build list of all existing vessel-IDs:
             List<string> vesselIds = new List<string>();
             foreach (Vessel vessel in FlightGlobals.Vessels) vesselIds.Add(vessel.id.ToString());
@@ -567,7 +573,7 @@ namespace KSTS
                 FlightRecoorder.flightRecordings.Add(flightRecordingNode.name, FlightRecording.CreateFromConfigNode(flightRecordingNode));
             }
 
-            FlightRecoorder.CollectGarbage();
+            FlightRecoorder.CollectGarbage(); // Might not work as expected in KSP 1.2, so we added this also to the timer-function.
         }
 
         public static void SaveRecordings(ConfigNode node)
@@ -661,6 +667,10 @@ namespace KSTS
         {
             try
             {
+                // Maybe remove old, invalid running recordings:
+                FlightRecoorder.CollectGarbage();
+
+                // Check if we are on an vessel which is recording a flight:
                 Vessel vessel = FlightGlobals.ActiveVessel;
                 if (!vessel) return;
                 FlightRecording recording = GetFlightRecording(vessel);

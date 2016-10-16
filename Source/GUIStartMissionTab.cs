@@ -33,6 +33,8 @@ namespace KSTS
         private static GUIPayloadShipSelector payloadShipSelector = null;
         private static GUIMissionProfileSelector missionProfileSelector = null;
         private static GUIOrbitEditor orbitEditor = null;
+        private static GUICrewTransferSelector crewTransferSelector = null;
+        private static GUIFlagSelector flagSelector = null;
         private static double currentCost = 0;
         private static Vector2 scrollPos = Vector2.zero;
         private static string shipName = "";
@@ -42,6 +44,8 @@ namespace KSTS
             payloadShipSelector = null;
             missionProfileSelector = null;
             orbitEditor = null;
+            crewTransferSelector = null;
+            flagSelector = null;
             scrollPos = Vector2.zero;
             shipName = "";
         }
@@ -59,6 +63,8 @@ namespace KSTS
             {
                 missionProfileSelector = null;
                 orbitEditor = null;
+                crewTransferSelector = null;
+                flagSelector = null;
                 return false;
             }
             currentCost += payloadShipSelector.payload.template.totalCost;
@@ -79,13 +85,17 @@ namespace KSTS
             if (missionProfileSelector.DisplaySelected())
             {
                 orbitEditor = null;
+                crewTransferSelector = null;
+                flagSelector = null;
                 return false;
             }
             currentCost += missionProfileSelector.selectedProfile.launchCost;
 
             // Mission-Parameters selection:
             if (orbitEditor == null) orbitEditor = new GUIOrbitEditor(missionProfileSelector.selectedProfile);
-            GUILayout.BeginScrollView(scrollPos, GUI.scrollStyle);
+            if (crewTransferSelector == null) crewTransferSelector = new GUICrewTransferSelector(payloadShipSelector.payload, missionProfileSelector.selectedProfile);
+            if (flagSelector == null) flagSelector = new GUIFlagSelector();
+            scrollPos = GUILayout.BeginScrollView(scrollPos, GUI.scrollStyle);
 
             GUILayout.Label("<size=14><b>Mission Parameters:</b></size>");
             GUILayout.BeginHorizontal();
@@ -95,12 +105,18 @@ namespace KSTS
 
             orbitEditor.DisplayEditor();
 
-            // TODO: Add Flag Selector (the FlagBrowser does not work)
-            // TODO: Add Kerbonatut Selector
+            // Display crew-selector, if the payload cat hold kerbals:
+            bool selectionIsValid = true;
+            if (payloadShipSelector.payload.GetCrewCapacity() > 0)
+            {
+                if (!crewTransferSelector.DisplayList()) selectionIsValid = false;
+            }
+
+            // Show Button for Flag-Selector:
+            flagSelector.ShowButton();
 
             GUILayout.EndScrollView();
-
-            return true;
+            return selectionIsValid;
         }
 
         public static bool Display()
@@ -118,7 +134,7 @@ namespace KSTS
                 else
                 {
                     // The orbit is clear, start the mission:
-                    MissionController.StartMission(Mission.CreateDeployment(shipName, payloadShipSelector.payload.template, orbitEditor.GetOrbit(), missionProfileSelector.selectedProfile));
+                    MissionController.StartMission(Mission.CreateDeployment(shipName, payloadShipSelector.payload.template, orbitEditor.GetOrbit(), missionProfileSelector.selectedProfile, crewTransferSelector.crewToDeliver, flagSelector.flagURL));
                     if (Funding.Instance != null) Funding.Instance.AddFunds(-currentCost, TransactionReasons.VesselRollout);
                     Reset();
                     return true;

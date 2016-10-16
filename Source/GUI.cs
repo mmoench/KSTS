@@ -155,8 +155,27 @@ namespace KSTS
     // Helper class to store a ships template (from the craft's save-file) together with its generated thumbnail:
     public class CachedShipTemplate
     {
-        public ShipTemplate template;
-        public Texture2D thumbnail;
+        public ShipTemplate template = null;
+        public Texture2D thumbnail = null;
+        private ShipConstruct shipConstruct = null; // Only needed to get more info about the template-ship, like its crew-capacity.
+
+        public int GetCrewCapacity()
+        {
+            int crewCapacity = 0;
+            try
+            {
+                if (this.shipConstruct == null) shipConstruct = ShipConstruction.LoadShip(template.filename);
+                foreach (Part part in shipConstruct.parts)
+                {
+                    crewCapacity += part.CrewCapacity;
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("[KSTS] CachedShipTemplate::GetCrewCapacity(): " + e.ToString());
+            }
+            return crewCapacity;
+        }
     }
 
     // Creates the button and contains the functionality to draw the GUI-window (we want to use the same window
@@ -267,7 +286,7 @@ namespace KSTS
         // For some reason Unity has no resize method, so we have to implement our own:
         public static Texture2D ResizeTexture(Texture2D input, int width, int height)
         {
-            Texture2D small = new Texture2D(64, 64, TextureFormat.RGBA32, false);
+            Texture2D small = new Texture2D(width, height, TextureFormat.RGBA32, false);
             float rx = (float)input.width / (float)small.width;
             float ry = (float)input.height / (float)small.height;
             for (int y = 0; y < small.height; y++)
@@ -391,7 +410,6 @@ namespace KSTS
                         helpTabScrollPos = GUILayout.BeginScrollView(helpTabScrollPos, GUI.scrollStyle);
                         GUILayout.Label(helpText);
                         GUILayout.EndScrollView();
-                        // TODO: Write some Help-Texts
                         break;
 
                     default:

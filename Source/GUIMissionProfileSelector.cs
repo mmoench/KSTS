@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
@@ -107,17 +108,26 @@ namespace KSTS
                     {
                         bool hasFittingPort = false;
                         int portNumber = 0;
-                        foreach (string portType in missionProfile.dockingPortTypes)
+                        if (missionProfile.dockingPortTypes != null)
                         {
-                            if (portNumber > 0) dockingPorts += ", ";
-                            if (this.filterDockingPortTypes != null && this.filterDockingPortTypes.Contains(portType))
+                            foreach (string portType in missionProfile.dockingPortTypes)
                             {
-                                hasFittingPort = true;
-                                dockingPorts += "<color=" + green + ">" + TargetVessel.TranslateDockingPortName(portType) + "</color>";
-                            } else dockingPorts += TargetVessel.TranslateDockingPortName(portType);
-                            portNumber++;
+                                if (portNumber > 0) dockingPorts += ", ";
+                                if (this.filterDockingPortTypes != null && this.filterDockingPortTypes.Contains(portType))
+                                {
+                                    hasFittingPort = true;
+                                    dockingPorts += "<color=" + green + ">" + TargetVessel.TranslateDockingPortName(portType) + "</color>";
+                                }
+                                else dockingPorts += TargetVessel.TranslateDockingPortName(portType);
+                                portNumber++;
+                            }
                         }
-                        if (this.filterDockingPortTypes != null && !hasFittingPort) dockingPorts = "<color=" + red + ">" + dockingPorts + "</color>";
+                        if (portNumber == 0) dockingPorts = "N/A";
+                        if (this.filterDockingPortTypes != null && !hasFittingPort)
+                        {
+                            dockingPorts = "<color=" + red + ">" + dockingPorts + "</color>";
+                            isValidProfile = false;
+                        }
                     }
                     if (dockingPorts != "") description += ", Docking-Ports: " + dockingPorts + "\n";
                     else description += "\n";
@@ -138,7 +148,8 @@ namespace KSTS
                     string payloadMass = missionProfile.payloadMass.ToString("0.0t");
                     if (this.filterMass != null)
                     {
-                        if (this.filterMass > missionProfile.payloadMass) { isValidProfile = false; color = red; }
+                        // We only display one digit after the pount, so we should round here to avoid confustion:
+                        if (Math.Round((double)this.filterMass, 1) > Math.Round(missionProfile.payloadMass, 1)) { isValidProfile = false; color = red; }
                         else color = green;
                         payloadMass = "<color=" + color + ">" + payloadMass + "</color>";
                     }
