@@ -23,9 +23,10 @@ To deploy a new vessel into Kerbin's orbit, you just select the desired ship, mi
 Please note that for technical reasons deployment missions can only be executed while you are at the space center.
 
 <size=16><b>Transport missions</b></size>
-To start a transport-mission, select a vessel in orbit around Kerbin and a valid transport mission-profile. Please remeber that the target-vessel and the vessel from your mission-profile need matching docking-port types.
+To start a transport-mission, select a vessel in orbit around Kerbin and a valid transport mission-profile. Please remember that the target-vessel and the vessel from your mission-profile need matching docking-port types.
 For technical reasons transport missions will only complete on vessels which are not currently active. So once the ETA is reached, you might want to switch to a different vessel for a while or return to the space center.
 For the sake of simplicity crew-members will get transferred at the time mission completes. Which means that there is no time required for possible return-trips and you should leave Kerbals alone, which you have selected to get transported into orbit.
 
 <size=16><b>Construction missions</b></size>
-Coming soon ... (maybe)
+Construction-missions allow you to build new ships directly in orbit which would otherwise be too large to be launched with a deployment-mission. To launch a construction-mission, you will need a space-station in Kerbin orbit (the vessel-type must be “station”) with at least one engineer on board as well as a transport-mission profile, which is able to reach said space station. The space station will function as your space dock and while the engineer constructs the new vessel, the selected transport-vessel will shuttle all the required parts into orbit.
+Please note that the construction of a new vessel will take some time, one Kerbin-day per ton of dry mass to be exact. You can however halve this time with each additional engineer you station on your space dock.

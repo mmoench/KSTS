@@ -34,7 +34,7 @@ namespace KSTS
             {
                 flagIcon = new Texture2D(58, 32, TextureFormat.RGBA32, false);
                 flagIcon.LoadImage(File.ReadAllBytes(flagFilename));
-                flagIcon = GUI.ResizeTexture(flagIcon, 58, 32);
+                flagIcon = GUI.ResizeTexture(flagIcon, 96, 60);
             }
             else
             {
@@ -67,8 +67,7 @@ namespace KSTS
 
         public void ShowButton()
         {
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("<b>Flag:</b> ", new GUIStyle(GUI.labelStyle) { alignment = TextAnchor.MiddleLeft, stretchWidth = false });
+            GUILayout.Label("<size=14><b>Mission-Flag:</b></size>", GUI.labelStyle);
 
             bool pressed = false;
             if (flagIcon != null)
@@ -79,9 +78,6 @@ namespace KSTS
             {
                 pressed = GUILayout.Button("N/A", new GUIStyle(GUI.buttonStyle) { stretchWidth = false });
             }
-            GUILayout.Label("", new GUIStyle(GUI.labelStyle) { stretchWidth = true }); // Just a filler
-
-            GUILayout.EndHorizontal();
 
             if (pressed) ShowFlagBrowser();
         }

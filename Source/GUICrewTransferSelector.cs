@@ -6,6 +6,7 @@ using UnityEngine;
 
 namespace KSTS
 {
+    // TODO: We should allow the playe to also select and transport tourists ...
     class GUICrewTransferSelector
     {
         public List<string> crewToDeliver = null;
@@ -56,14 +57,15 @@ namespace KSTS
                 if (targetVessel != null) // Existing vessel (in- & outboud transfers possible)
                 {
                     // Display capacity and transfer deltas:
-                    if (targetVessel.GetVesselCrew().Count + crewToDeliver.Count - crewToCollect.Count > targetCrewCapacity) targetOverload = true;
-                    headline = "<b>" + targetVessel.vesselName + ":</b> " + targetVessel.GetVesselCrew().Count.ToString() + "/" + targetCrewCapacity.ToString();
+                    List<ProtoCrewMember> targetVesselCrew = TargetVessel.GetCrew(targetVessel);
+                    if (targetVesselCrew.Count + crewToDeliver.Count - crewToCollect.Count > targetCrewCapacity) targetOverload = true;
+                    headline = "<b>" + targetVessel.vesselName + ":</b> " + targetVesselCrew.Count.ToString() + "/" + targetCrewCapacity.ToString();
                     string transfers = " inbound: " + crewToDeliver.Count.ToString("+#;-#;0") + ", outbound: " + (-crewToCollect.Count).ToString("+#;-#;0");
                     if (targetOverload) transfers = "<color=#FF0000>" + transfers + "</color>";
                     GUILayout.Label(headline + transfers);
 
                     // Display Crew that is stationed on the target vessel:
-                    foreach (ProtoCrewMember kerbonaut in targetVessel.GetVesselCrew())
+                    foreach (ProtoCrewMember kerbonaut in targetVesselCrew)
                     {
                         string details = " <b>" + kerbonaut.name + "</b> (Level " + kerbonaut.experienceLevel.ToString() + " " + kerbonaut.trait + ")";
                         if (missionProfile.oneWayMission || MissionController.GetKerbonautsMission(kerbonaut.name) != null || missionProfile.missionType != MissionProfileType.TRANSPORT) GUILayout.Label(" • " + details); // Do not transport kerbals, which are flagged for another mission or there isn't even a return-trip or transport happening

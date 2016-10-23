@@ -168,6 +168,30 @@ namespace KSTS
                 Debug.LogError("[KSTS] Timer(): " + e.ToString());
             }
         }
+
+        // Returns the currently avaialabel amount of funds:
+        public static double GetFunds()
+        {
+            if (HighLogic.CurrentGame.Mode == Game.Modes.CAREER && Funding.Instance != null)
+            {
+                return Funding.Instance.Funds;
+            }
+            else
+            {
+                // When we are playing a sandbox-game we have "unlimited" funds:
+                return 999999999;
+            }
+        }
+
+        // Adds the given amount of funds in a career-game:
+        public static void AddFunds(double funds)
+        {
+            // This only makes sense in career-mode:
+            if (HighLogic.CurrentGame.Mode == Game.Modes.CAREER && Funding.Instance != null)
+            {
+                Funding.Instance.AddFunds(funds, TransactionReasons.VesselRollout);
+            }
+        }
     }
 
     // This class handels load- and save-operations.

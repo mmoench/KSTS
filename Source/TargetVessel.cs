@@ -131,6 +131,34 @@ namespace KSTS
             return FlightGlobals.Vessels.Find(x => x.protoVessel.vesselID == vesselId);
         }
 
+        // Returns all crew members from the given vessel. While the vessel-object does have it's own function for this
+        // this function works with the parts itself, which we modify during transport-missions. This means that this
+        // function is more accurate to work with until the vessel has been active and was re-packed by KSP.
+        public static List<ProtoCrewMember> GetCrew(Vessel vessel)
+        {
+            List<ProtoCrewMember> crew = new List<ProtoCrewMember>();
+            foreach (ProtoPartSnapshot protoPart in vessel.protoVessel.protoPartSnapshots)
+            {
+                if (protoPart.protoModuleCrew == null) continue;
+                foreach (ProtoCrewMember crewMember in protoPart.protoModuleCrew)
+                {
+                    crew.Add(crewMember);
+                }
+            }
+            return crew;
+        }
+
+        // Returns the number of crew-members that have a given trait (eg "Pilot"):
+        public static int GetCrewCountWithTrait(Vessel vessel, string trait)
+        {
+            int traitCount = 0;
+            foreach (ProtoCrewMember crewMember in TargetVessel.GetCrew(vessel))
+            {
+                if (crewMember.trait == trait) traitCount++;
+            }
+            return traitCount;
+        }
+
         // Adds the given amount of resources to the (unloaded) ship provided:
         public static void AddResources(Vessel vessel, string resourceName, double amount)
         {
@@ -219,7 +247,16 @@ namespace KSTS
                 }
 
                 // Add the kerbonaut to the selected part, using the next available seat:
-                int seatIdx = targetPart.protoCrewNames.Count;
+                int seatIdx = 0;
+                bool seatSwitched = false;
+                do
+                {
+                    foreach (ProtoCrewMember crewMember in targetPart.protoModuleCrew)
+                    {
+                        if (seatIdx == crewMember.seatIdx) { seatIdx++; seatSwitched = true; }
+                    }
+                }
+                while (seatSwitched);
                 targetPart.protoModuleCrew.Add(kerbonaut);
                 targetPart.protoCrewNames.Add(kerbonautName);
 

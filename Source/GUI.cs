@@ -162,6 +162,7 @@ namespace KSTS
         public int GetCrewCapacity()
         {
             int crewCapacity = 0;
+            if (HighLogic.LoadedScene == GameScenes.FLIGHT) throw new Exception("ShipConstruction.LoadShip cannot be run while in flight"); // This would create a new, non-functioning vessel near the current vessel
             try
             {
                 if (this.shipConstruct == null) shipConstruct = ShipConstruction.LoadShip(template.filename);
@@ -175,6 +176,25 @@ namespace KSTS
                 Debug.LogError("[KSTS] CachedShipTemplate::GetCrewCapacity(): " + e.ToString());
             }
             return crewCapacity;
+        }
+
+        public double GetDryMass()
+        {
+            double dryMass = 0;
+            if (HighLogic.LoadedScene == GameScenes.FLIGHT) throw new Exception("ShipConstruction.LoadShip cannot be run while in flight"); // This would create a new, non-functioning vessel near the current vessel
+            try
+            {
+                if (this.shipConstruct == null) shipConstruct = ShipConstruction.LoadShip(template.filename);
+                foreach (Part part in shipConstruct.parts)
+                {
+                    dryMass += part.mass - part.resourceMass;
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("[KSTS] CachedShipTemplate::GetDryMass(): " + e.ToString());
+            }
+            return dryMass;
         }
     }
 
@@ -264,11 +284,19 @@ namespace KSTS
 
         public static string FormatDuration(double duration)
         {
+            int dayLength = 24;
+            if (GameSettings.KERBIN_TIME) dayLength = 6;
             double seconds = duration % 60;
             int minutes = ((int)(duration / 60)) % 60;
-            int hours = ((int)(duration / 60 / 60)) % 24;
-            int days = ((int)(duration / 60 / 60 / 24));
+            int hours = ((int)(duration / 60 / 60)) % dayLength;
+            int days = ((int)(duration / 60 / 60 / dayLength));
             return String.Format("{0:0}/{1:00}:{2:00}:{3:00.00}", days, hours, minutes, seconds);
+        }
+
+        public static string FormatAltitude(double altitude)
+        {
+            if (altitude >= 1000000) return (altitude / 1000).ToString("#,##0km");
+            else return altitude.ToString("#,##0m");
         }
 
         // Returns a thumbnail for a given vessel-name (used to find fitting images for vessels used in mission-profiles):
@@ -386,18 +414,35 @@ namespace KSTS
 
                     // Deploy:
                     case 1:
-                        if (GUIStartDeployMissionTab.Display()) selectedMainTab = 0;
+                        if (HighLogic.LoadedScene == GameScenes.FLIGHT)
+                        {
+                            GUILayout.BeginScrollView(Vector2.zero, GUI.scrollStyle);
+                            GUILayout.Label("<b>Please go to the Space Center to launch a new mission.</b>");
+                            GUILayout.EndScrollView();
+                        }
+                        else if (GUIStartDeployMissionTab.Display()) selectedMainTab = 0;
                         break;
 
                     // Transport:
                     case 2:
-                        if (GUIStartTransportMissionTab.Display()) selectedMainTab = 0;
+                        if (HighLogic.LoadedScene == GameScenes.FLIGHT)
+                        {
+                            GUILayout.BeginScrollView(Vector2.zero, GUI.scrollStyle);
+                            GUILayout.Label("<b>Please go to the Space Center to launch a new mission.</b>");
+                            GUILayout.EndScrollView();
+                        }
+                        else if (GUIStartTransportMissionTab.Display()) selectedMainTab = 0;
                         break;
 
                     // Construct:
                     case 3:
-                        // TODO: Add Construct Missions
-                        GUILayout.Label("<b>Not implemented, yet.</b>");
+                        if (HighLogic.LoadedScene == GameScenes.FLIGHT)
+                        {
+                            GUILayout.BeginScrollView(Vector2.zero, GUI.scrollStyle);
+                            GUILayout.Label("<b>Please go to the Space Center to launch a new mission.</b>");
+                            GUILayout.EndScrollView();
+                        }
+                        else if (GUIStartConstructMissionTab.Display()) selectedMainTab = 0;
                         break;
 
                     // Record:

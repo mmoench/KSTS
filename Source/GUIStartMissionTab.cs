@@ -12,9 +12,8 @@ namespace KSTS
         // Displays the footer with the current cost and maybe an "execute"-button; returns true, if that button was pressed:
         protected static bool DisplayFooter(double cost, bool displayButton)
         {
-            double currentFunds = 0;
+            double currentFunds = KSTS.GetFunds();
             string fundsColor = "#B3D355"; // Green
-            if (Funding.Instance != null) currentFunds = Funding.Instance.Funds;
             if (cost > currentFunds) fundsColor = "#D35555"; // Red
 
             GUILayout.BeginHorizontal();
@@ -105,14 +104,17 @@ namespace KSTS
 
             orbitEditor.DisplayEditor();
 
-            // Display crew-selector, if the payload cat hold kerbals:
+            // Display crew-selector, if the payload can hold kerbals:
             bool selectionIsValid = true;
             if (payloadShipSelector.payload.GetCrewCapacity() > 0)
             {
+                GUILayout.Label("");
+                GUILayout.Label("<size=14><b>Crew:</b></size>");
                 if (!crewTransferSelector.DisplayList()) selectionIsValid = false;
             }
 
             // Show Button for Flag-Selector:
+            GUILayout.Label("");
             flagSelector.ShowButton();
 
             GUILayout.EndScrollView();
@@ -135,7 +137,7 @@ namespace KSTS
                 {
                     // The orbit is clear, start the mission:
                     MissionController.StartMission(Mission.CreateDeployment(shipName, payloadShipSelector.payload.template, orbitEditor.GetOrbit(), missionProfileSelector.selectedProfile, crewTransferSelector.crewToDeliver, flagSelector.flagURL));
-                    if (Funding.Instance != null) Funding.Instance.AddFunds(-currentCost, TransactionReasons.VesselRollout);
+                    KSTS.AddFunds(-currentCost);
                     Reset();
                     return true;
                 }
@@ -230,7 +232,181 @@ namespace KSTS
                     payloadResourceSelector.selectedResources,
                     payloadResourceSelector.selectedCrewTransfers
                 ));
-                if (Funding.Instance != null) Funding.Instance.AddFunds(-currentCost, TransactionReasons.VesselRollout);
+                KSTS.AddFunds(-currentCost);
+                Reset();
+                return true;
+            }
+            return false;
+        }
+    }
+
+    class GUIStartConstructMissionTab : GUIStartMissionTab
+    {
+        private static GUIPayloadShipSelector payloadShipSelector = null;
+        private static GUIMissionProfileSelector missionProfileSelector = null;
+        private static GUITargetVesselSelector targetVesselSelector = null;
+        private static GUICrewTransferSelector crewTransferSelector = null;
+        private static GUIFlagSelector flagSelector = null;
+        private static double currentCost = 0;
+        private static Vector2 scrollPos = Vector2.zero;
+        private static string shipName = "";
+        private static double constructionTime = 0;
+
+        public static void Reset()
+        {
+            payloadShipSelector = null;
+            missionProfileSelector = null;
+            targetVesselSelector = null;
+            crewTransferSelector = null;
+            flagSelector = null;
+            scrollPos = Vector2.zero;
+            shipName = "";
+            constructionTime = 0;
+        }
+
+        private static bool DisplayInner()
+        {
+            // Payload selection:
+            if (payloadShipSelector == null) payloadShipSelector = new GUIPayloadShipSelector();
+            if (payloadShipSelector.payload == null)
+            {
+                payloadShipSelector.DisplayList();
+                return false;
+            }
+            if (payloadShipSelector.DisplaySelected())
+            {
+                targetVesselSelector = null;
+                missionProfileSelector = null;
+                crewTransferSelector = null;
+                flagSelector = null;
+                return false;
+            }
+            currentCost += payloadShipSelector.payload.template.totalCost;
+
+            // Target (space-dock) selection:
+            if (targetVesselSelector == null)
+            {
+                targetVesselSelector = new GUITargetVesselSelector();
+                targetVesselSelector.filterVesselType = VesselType.Station;
+                targetVesselSelector.filterHasCrewTrait = "Engineer"; // There does not seem to be an enum for this.
+            }
+            if (targetVesselSelector.targetVessel == null)
+            {
+                targetVesselSelector.DisplayList();
+                return false;
+            }
+            if (targetVesselSelector.DisplaySelected())
+            {
+                missionProfileSelector = null;
+                crewTransferSelector = null;
+                flagSelector = null;
+                return false;
+            }
+
+            // Mission-Profile selection:
+            if (missionProfileSelector == null)
+            {
+                missionProfileSelector = new GUIMissionProfileSelector();
+                missionProfileSelector.filterAltitude = targetVesselSelector.targetVessel.orbit.ApA;
+                missionProfileSelector.filterBody = targetVesselSelector.targetVessel.orbit.referenceBody;
+                missionProfileSelector.filterDockingPortTypes = TargetVessel.GetVesselDockingPortTypes(targetVesselSelector.targetVessel);
+                missionProfileSelector.filterMissionType = MissionProfileType.TRANSPORT;
+                shipName = payloadShipSelector.payload.template.shipName;
+            }
+            if (missionProfileSelector.selectedProfile == null)
+            {
+                missionProfileSelector.DisplayList();
+                return false;
+            }
+            if (missionProfileSelector.DisplaySelected())
+            {
+                crewTransferSelector = null;
+                flagSelector = null;
+                return false;
+            }
+
+            if (crewTransferSelector == null) crewTransferSelector = new GUICrewTransferSelector(payloadShipSelector.payload, missionProfileSelector.selectedProfile);
+            if (flagSelector == null) flagSelector = new GUIFlagSelector();
+
+            // Display Construction-Info:
+            scrollPos = GUILayout.BeginScrollView(scrollPos, GUI.scrollStyle);
+            GUILayout.Label("<size=14><b>Construction Info:</b></size>");
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Ship name:", new GUIStyle(GUI.labelStyle) { stretchWidth = true });
+            shipName = GUILayout.TextField(shipName, new GUIStyle(GUI.textFieldStyle) { alignment = TextAnchor.MiddleRight, stretchWidth = false, fixedWidth = 320 });
+            GUILayout.EndHorizontal();
+
+            // Calculate and display all the construction-parameters:
+            int engineers = TargetVessel.GetCrewCountWithTrait(targetVesselSelector.targetVessel, "Engineer");
+            if (engineers <= 0) throw new Exception("no engineers on target vessel");
+            if (missionProfileSelector.selectedProfile.payloadMass <= 0) throw new Exception("mission profile payload too low");
+            double dryMass = payloadShipSelector.payload.GetDryMass();
+            double totalMass = payloadShipSelector.payload.template.totalMass;
+            int flights = (int) Math.Ceiling(totalMass / missionProfileSelector.selectedProfile.payloadMass);
+            double flightTime = missionProfileSelector.selectedProfile.missionDuration;
+            double totalFlightTime = flightTime * flights;
+            double baseConstructionTime = dryMass * 6 * 60 * 60; // 1 (kerbin-) day / ton
+            double totalFlightCost = missionProfileSelector.selectedProfile.launchCost * flights;
+
+            currentCost += totalFlightCost;
+            constructionTime = baseConstructionTime / engineers; // half the time per engineer
+            if (totalFlightTime > constructionTime) constructionTime = totalFlightTime;
+
+            GUIStyle leftLabel = new GUIStyle(GUI.labelStyle) { stretchWidth = true };
+            GUIStyle rightLabel = new GUIStyle(GUI.labelStyle) { stretchWidth = false, alignment = TextAnchor.MiddleRight };
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Mass:", leftLabel);
+            GUILayout.Label(totalMass.ToString("#,##0.00t") + " (" + dryMass.ToString("#,##0.00t") + " dry)", rightLabel);
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Single Flight (" + (missionProfileSelector.selectedProfile.launchCost / missionProfileSelector.selectedProfile.payloadMass).ToString("#,##0 √/t") + "):", leftLabel);
+            GUILayout.Label(missionProfileSelector.selectedProfile.payloadMass.ToString("#,##0.00t") + " in " + GUI.FormatDuration(flightTime) + " for " + missionProfileSelector.selectedProfile.launchCost.ToString("#,##0 √"), rightLabel);
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Total Flights:", leftLabel);
+            GUILayout.Label(flights.ToString("#,##0") + " in " + GUI.FormatDuration(totalFlightTime) + " for " + totalFlightCost.ToString("#,##0 √"), rightLabel);
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Base Construction Time (6h/t):", leftLabel);
+            GUILayout.Label(GUI.FormatDuration(baseConstructionTime), rightLabel);
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Total Construction Time (" + engineers.ToString("#,##0") + " engineer" + (engineers > 1 ? "s" : "") + "):", leftLabel);
+            GUILayout.Label(GUI.FormatDuration(constructionTime), rightLabel);
+            GUILayout.EndHorizontal();
+
+            // Display crew-selector, if the new ship can hold kerbals:
+            bool selectionIsValid = true;
+            if (payloadShipSelector.payload.GetCrewCapacity() > 0)
+            {
+                GUILayout.Label("");
+                GUILayout.Label("<size=14><b>Crew:</b></size>");
+                if (!crewTransferSelector.DisplayList()) selectionIsValid = false;
+            }
+
+            // Show Button for Flag-Selector:
+            GUILayout.Label("");
+            flagSelector.ShowButton();
+
+            GUILayout.EndScrollView();
+            return selectionIsValid;
+        }
+
+        public static bool Display()
+        {
+            currentCost = 0;
+            bool ready = DisplayInner();
+            bool launch = DisplayFooter(currentCost, ready);
+            if (launch)
+            {
+                // Start the mission:
+                MissionController.StartMission(Mission.CreateConstruction(shipName, payloadShipSelector.payload.template, targetVesselSelector.targetVessel, missionProfileSelector.selectedProfile, crewTransferSelector.crewToDeliver, flagSelector.flagURL, constructionTime));
+                KSTS.AddFunds(-currentCost);
                 Reset();
                 return true;
             }

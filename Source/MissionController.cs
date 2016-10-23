@@ -41,7 +41,7 @@ namespace KSTS
         {
             if (type == MissionType.DEPLOY) return "deployment";
             if (type == MissionType.TRANSPORT) return "transport";
-            if (type == MissionType.TRANSPORT) return "construction";
+            if (type == MissionType.CONSTRUCT) return "construction";
             return "N/A";
         }
 
@@ -107,6 +107,21 @@ namespace KSTS
             return mission;
         }
 
+        public static Mission CreateConstruction(string shipName, ShipTemplate template, Vessel spaceDock, MissionProfile profile, List<string> crew, string flagURL, double constructionTime)
+        {
+            Mission mission = new Mission();
+            mission.missionType = MissionType.CONSTRUCT;
+            mission.shipTemplateFilename = SanitizePath(template.filename);
+            mission.targetVesselId = spaceDock.protoVessel.vesselID;
+            mission.shipName = shipName;
+            mission.profileName = profile.profileName;
+            mission.eta = Planetarium.GetUniversalTime() + constructionTime;
+            mission.crewToDeliver = crew; // The crew we want the new vessel to start with.
+            mission.flagURL = flagURL;
+
+            return mission;
+        }
+
         public static Mission CreateFromConfigNode(ConfigNode node)
         {
             Mission mission = new Mission();
@@ -124,6 +139,24 @@ namespace KSTS
                     {
                         CreateShip();
                         return true;
+                    }
+                    return false;
+
+                case MissionType.CONSTRUCT:
+                    if (HighLogic.LoadedScene != GameScenes.FLIGHT)
+                    {
+                        Vessel targetVessel = null;
+                        if (targetVesselId == null || (targetVessel = TargetVessel.GetVesselById((Guid)targetVesselId)) == null || !TargetVessel.IsValidTarget(targetVessel, MissionController.missionProfiles[profileName]))
+                        {
+                            // Abort mission (maybe the vessel was removed or got moved out of range):
+                            Debug.Log("[KSTS] aborting transport-construction: target-vessel missing or out of range");
+                            ScreenMessages.PostScreenMessage("Aborting construction-mission: Target-vessel not found at expected rendezvous-coordinates!");
+                        }
+                        else
+                        {
+                            CreateShip();
+                            return true;
+                        }
                     }
                     return false;
 
@@ -159,10 +192,6 @@ namespace KSTS
                     }
                     return false;
 
-                case MissionType.CONSTRUCT:
-                    // TODO: Execute Construct Mission
-                    break;
-
                 default:
                     throw new Exception("unexpected mission-type '" + missionType.ToString() + "'");
             }
@@ -188,11 +217,24 @@ namespace KSTS
         // error-prone, but there are no better examples available on the internet.
         private void CreateShip()
         {
+            // TODO: Apply the staging which was saved in the editor.
+            // TODO: Settings from other mods like Part-Switchers must also be applied here, maybe copy the config-nodes...
             try
             {
-                if (missionType != MissionType.DEPLOY && missionType != MissionType.CONSTRUCT) return;
                 if (!File.Exists(shipTemplateFilename)) throw new Exception("file '" + shipTemplateFilename + "' not found");
-                // TODO: Maybe construct a ship near the target-vessel, otherwise abort if there is no orbit ...
+                if (missionType == MissionType.DEPLOY)
+                {
+                    // Make sure that there won't be any collisions, when the vessel is created at the given orbit:
+                    orbit = GUIOrbitEditor.ApplySafetyDistance(orbit);
+                }
+                else if (missionType == MissionType.CONSTRUCT)
+                {
+                    // Deploy the new ship next to the space-dock:
+                    Vessel spaceDock = TargetVessel.GetVesselById((Guid)targetVesselId);
+                    orbit = GUIOrbitEditor.CreateFollowingOrbit(spaceDock.orbit, 100); // TODO: Calculate the distance using the ships's size
+                    orbit = GUIOrbitEditor.ApplySafetyDistance(orbit);
+                }
+                else throw new Exception("invalid mission-type '"+missionType.ToString()+"'");
 
                 // The ShipConstruct-object can only savely exist while not in flight, otherwise it will spam Null-Pointer Exceptions every tick:
                 if (HighLogic.LoadedScene == GameScenes.FLIGHT) throw new Exception("unable to run CreateShip while in flight");
@@ -319,13 +361,13 @@ namespace KSTS
 
             ShipTemplate shipTemplate = GetShipTemplate();
             if (shipTemplate != null) description += "<b>Ship:</b> " + shipName + " (" + shipTemplate.shipName.ToString() + ")\n";
-            if (orbit != null) description += "<b>Orbit:</b> " + orbit.referenceBody.bodyName.ToString() + " @ " + (orbit.semiMajorAxis - orbit.referenceBody.Radius).ToString("#,##0m") + "\n";
+            if (orbit != null) description += "<b>Orbit:</b> " + orbit.referenceBody.bodyName.ToString() + " @ " + GUI.FormatAltitude(orbit.semiMajorAxis - orbit.referenceBody.Radius) + "\n";
 
             // Display the targeted vessel (transport- and construction-missions):
             Vessel targetVessel = null;
             if (targetVesselId != null && (targetVessel = TargetVessel.GetVesselById((Guid)targetVesselId)) != null)
             {
-                description += "<b>Target:</b> " + targetVessel.vesselName + " @ " + targetVessel.altitude.ToString("#,##0m") + "\n";
+                description += "<b>Target:</b> " + targetVessel.vesselName + " @ " + GUI.FormatAltitude(targetVessel.altitude) + "\n";
             }
 
             // Display the total weight of the payload we are hauling (transport-missions):
@@ -350,6 +392,7 @@ namespace KSTS
                 description += "<b>Crew-Transfer (Inbound):</b> " + String.Join(", ", crewToCollect.ToArray()).Replace(" Kerman", "") + "\n";
             }
 
+            // Display the remaining time:
             double remainingTime = eta - Planetarium.GetUniversalTime();
             if (remainingTime < 0) remainingTime = 0;
             int etaColorComponent = 0xFF;
