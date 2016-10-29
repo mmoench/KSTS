@@ -248,15 +248,11 @@ namespace KSTS
 
                 // Add the kerbonaut to the selected part, using the next available seat:
                 int seatIdx = 0;
-                bool seatSwitched = false;
-                do
+                foreach (ProtoCrewMember crewMember in targetPart.protoModuleCrew)
                 {
-                    foreach (ProtoCrewMember crewMember in targetPart.protoModuleCrew)
-                    {
-                        if (seatIdx == crewMember.seatIdx) { seatIdx++; seatSwitched = true; }
-                    }
+                    if (seatIdx == crewMember.seatIdx) { seatIdx++; }
                 }
-                while (seatSwitched);
+
                 targetPart.protoModuleCrew.Add(kerbonaut);
                 targetPart.protoCrewNames.Add(kerbonautName);
 
