@@ -14,6 +14,7 @@ namespace KSTS
 
         public VesselType? filterVesselType = null;
         public string filterHasCrewTrait = null;
+        public int? filterHasCrewTraitCount = null;
 
         // Displays the currently selected target-vessel and returns true, if the player has deselected it:
         public bool DisplaySelected()
@@ -98,9 +99,11 @@ namespace KSTS
                     if (filterHasCrewTrait != null)
                     {
                         int traitCount = TargetVessel.GetCrewCountWithTrait(vessel, filterHasCrewTrait);
-                        string color = traitCount > 0 ? green : red;
-                        filterAttributes.Add("<b>" + filterHasCrewTrait + "s:</b> <color=" + color + ">" + traitCount.ToString() + "</color>");
-                        if (traitCount == 0) filterThisTarget = true;
+                        int requiredCount = 1;
+                        if (filterHasCrewTraitCount != null) requiredCount = (int) filterHasCrewTraitCount;
+                        string color = traitCount >= requiredCount ? green : red;
+                        filterAttributes.Add("<b>" + filterHasCrewTrait + "s:</b> <color=" + color + ">" + traitCount.ToString() + "/"+ requiredCount.ToString() + "</color>");
+                        if (traitCount < requiredCount) filterThisTarget = true;
                     }
                     if (filterAttributes.Count > 0) descriptions.Add(String.Join(" ", filterAttributes.ToArray()));
 

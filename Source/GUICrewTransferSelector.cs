@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace KSTS
 {
-    // TODO: We should allow the playe to also select and transport tourists ...
+    // TODO: We should allow the player to also select and transport tourists ...
     class GUICrewTransferSelector
     {
         public List<string> crewToDeliver = null;

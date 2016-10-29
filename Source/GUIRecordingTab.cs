@@ -123,8 +123,13 @@ namespace KSTS
                                 if (GUILayout.Toggle(selectedPayloadAssemblyIds.Contains(payloadAssembly.id), "<b>" + payloadAssembly.name + "</b>"))
                                 {
                                     if (!selectedPayloadAssemblyIds.Contains(payloadAssembly.id)) selectedPayloadAssemblyIds.Add(payloadAssembly.id);
+                                    payloadAssembly.detachmentPart.Highlight(true); // Highligt the selected decoupler, docking-port, etc
                                 }
-                                else if (selectedPayloadAssemblyIds.Contains(payloadAssembly.id)) selectedPayloadAssemblyIds.Remove(payloadAssembly.id);
+                                else
+                                {
+                                    if (selectedPayloadAssemblyIds.Contains(payloadAssembly.id)) selectedPayloadAssemblyIds.Remove(payloadAssembly.id);
+                                    payloadAssembly.detachmentPart.Highlight(false);
+                                }
                                 GUILayout.Label(payloadAssembly.partCount.ToString() + " parts, " + payloadAssembly.mass.ToString("#,##0.00 t") + "   ", new GUIStyle(GUI.labelStyle) { alignment = TextAnchor.MiddleRight });
                                 GUILayout.EndHorizontal();
                             }

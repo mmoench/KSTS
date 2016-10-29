@@ -195,7 +195,6 @@ namespace KSTS
                 default:
                     throw new Exception("unexpected mission-type '" + missionType.ToString() + "'");
             }
-            return false;
         }
 
         // Helper function for building an ordered list of parts which are attached to the given root-part. The resulting
@@ -217,33 +216,33 @@ namespace KSTS
         // error-prone, but there are no better examples available on the internet.
         private void CreateShip()
         {
-            // TODO: Apply the staging which was saved in the editor.
-            // TODO: Settings from other mods like Part-Switchers must also be applied here, maybe copy the config-nodes...
             try
             {
+                // The ShipConstruct-object can only savely exist while not in flight, otherwise it will spam Null-Pointer Exceptions every tick:
+                if (HighLogic.LoadedScene == GameScenes.FLIGHT) throw new Exception("unable to run CreateShip while in flight");
+
+                // Load the parts form the saved vessel:
                 if (!File.Exists(shipTemplateFilename)) throw new Exception("file '" + shipTemplateFilename + "' not found");
+                ShipConstruct shipConstruct = ShipConstruction.LoadShip(shipTemplateFilename);
+                ProtoVessel dummyProto = new ProtoVessel(new ConfigNode(), null);
+                Vessel dummyVessel = new Vessel();
+                dummyProto.vesselRef = dummyVessel;
+
+                // Maybe adjust the orbit:
+                float vesselHeight = Math.Max(Math.Max(shipConstruct.shipSize.x, shipConstruct.shipSize.y), shipConstruct.shipSize.z);
                 if (missionType == MissionType.DEPLOY)
                 {
                     // Make sure that there won't be any collisions, when the vessel is created at the given orbit:
-                    orbit = GUIOrbitEditor.ApplySafetyDistance(orbit);
+                    orbit = GUIOrbitEditor.ApplySafetyDistance(orbit, vesselHeight);
                 }
                 else if (missionType == MissionType.CONSTRUCT)
                 {
                     // Deploy the new ship next to the space-dock:
                     Vessel spaceDock = TargetVessel.GetVesselById((Guid)targetVesselId);
-                    orbit = GUIOrbitEditor.CreateFollowingOrbit(spaceDock.orbit, 100); // TODO: Calculate the distance using the ships's size
-                    orbit = GUIOrbitEditor.ApplySafetyDistance(orbit);
+                    orbit = GUIOrbitEditor.CreateFollowingOrbit(spaceDock.orbit, TargetVessel.GetVesselSize(spaceDock) + vesselHeight);
+                    orbit = GUIOrbitEditor.ApplySafetyDistance(orbit, vesselHeight);
                 }
-                else throw new Exception("invalid mission-type '"+missionType.ToString()+"'");
-
-                // The ShipConstruct-object can only savely exist while not in flight, otherwise it will spam Null-Pointer Exceptions every tick:
-                if (HighLogic.LoadedScene == GameScenes.FLIGHT) throw new Exception("unable to run CreateShip while in flight");
-
-                // Load the parts form the saved vessel:
-                ShipConstruct shipConstruct = ShipConstruction.LoadShip(shipTemplateFilename);
-                ProtoVessel dummyProto = new ProtoVessel(new ConfigNode(), null);
-                Vessel dummyVessel = new Vessel();
-                dummyProto.vesselRef = dummyVessel;
+                else throw new Exception("invalid mission-type '" + missionType.ToString() + "'");
 
                 // In theory it should be enough to simply copy the parts from the ShipConstruct to the ProtoVessel, but
                 // this only seems to work when the saved vessel starts with the root-part and is designed top down from there.
@@ -295,12 +294,14 @@ namespace KSTS
                 // Initialize all parts:
                 uint missionID = (uint)Guid.NewGuid().GetHashCode();
                 uint launchID = HighLogic.CurrentGame.launchID++;
+                int maxStageOffset = -1;
                 foreach (Part p in dummyVessel.parts)
                 {
                     p.flagURL = flagURL == null ? HighLogic.CurrentGame.flagURL : flagURL;
                     p.missionID = missionID;
                     p.launchID = launchID;
                     p.temperature = 1.0;
+                    maxStageOffset = Math.Max(p.stageOffset, maxStageOffset); // stageOffset is offset of this part in the staging-order (0..n with -1 meaning not staged)
 
                     // If the KRnD-Mod is installed, make sure that all parts of this newly created ship are set to the lates version:
                     foreach (PartModule module in p.Modules)
@@ -326,7 +327,7 @@ namespace KSTS
                     p.storePartRefs();
                 }
                 List<ConfigNode> partNodesL = new List<ConfigNode>();
-                foreach (var snapShot in dummyProto.protoPartSnapshots)
+                foreach (ProtoPartSnapshot snapShot in dummyProto.protoPartSnapshots)
                 {
                     ConfigNode node = new ConfigNode("PART");
                     snapShot.Save(node);
@@ -341,6 +342,9 @@ namespace KSTS
                 Debug.Log("[KSTS] deployed new ship '" + shipName.ToString() + "' as '" + pv.vesselRef.id.ToString() + "'");
                 ScreenMessages.PostScreenMessage("Vessel '" + shipName.ToString() + "' deployed"); // Popup message to notify the player
                 Vessel newVessel = FlightGlobals.Vessels.Find(x => x.id == pv.vesselID);
+
+                // While each part knows in which stage they are, the vessel has to know how many stages there are in total:
+                newVessel.protoVessel.stage = maxStageOffset + 1; // an offest of 0 would mean that there is only one stage
 
                 // Maybe add the initial crew to the vessel:
                 if (crewToDeliver != null && crewToDeliver.Count > 0 && newVessel != null)

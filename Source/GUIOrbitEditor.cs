@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Text.RegularExpressions;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace KSTS
@@ -73,24 +73,6 @@ namespace KSTS
             );
         }
 
-        // Checks if the given orbit is already used by another vessel, returns true if it can be used safely:
-        public static bool CheckOrbitClear(Orbit orbit, double unsafeDistance=50)
-        {
-            // TODO: Someone said in the forum, that this does not prevent one from launching a vessel into another vessel ...
-            foreach (Vessel vessel in FlightGlobals.Vessels)
-            {
-                if (vessel.situation != Vessel.Situations.ORBITING) continue;
-                if (vessel.orbit == null || vessel.orbit.referenceBody != orbit.referenceBody) continue;
-                double orbitalDistance = OrbitUtil.GetSmaDistance(vessel.orbit, orbit);
-                if (Math.Abs(orbitalDistance) < unsafeDistance)
-                {
-                    Debug.Log("[KSTS] dangerous orbit: " + orbitalDistance.ToString() + "m to " + vessel.vesselName);
-                    return false;
-                }
-            }
-            return true;
-        }
-
         // Retrurns a new orbit, which is following the given orbit at the given distance:
         public static Orbit CreateFollowingOrbit(Orbit referenceOrbit, double distance)
         {
@@ -101,9 +83,63 @@ namespace KSTS
             return orbit;
         }
 
-        // TODO: Search all active vessels and modify the given orbit's meanAnomalyAtEpoch that it has enough space to not collide. If this works, we can probably scrap the "save orbit" function ...
-        public static Orbit ApplySafetyDistance(Orbit orbit)
+        // Modifies and returns the given orbit so that a vessel of the given size won't collide with any other vessel on the same orbit:
+        public static Orbit ApplySafetyDistance(Orbit orbit, float vesselSize)
         {
+            // Find out how many degrees one meter is on the given orbit (same formula as above):
+            double anglePerMeters = Math.Sinh(1.0 / (2 * orbit.semiMajorAxis)) * 2;
+
+            // Check with every other vessel on simmilar orbits, if they might collide in the future:
+            System.Random rnd = new System.Random();
+            int adjustmentIterations = 0;
+            bool orbitAdjusted;
+            do
+            {
+                orbitAdjusted = false;
+                foreach (Vessel vessel in FlightGlobals.Vessels)
+                {
+                    if (vessel.situation != Vessel.Situations.ORBITING) continue;
+                    if (vessel.orbit.referenceBody != orbit.referenceBody) continue;
+
+                    // Find the next rendezvous (most of these parameters are just guesses, but they seem to work):
+                    double UT = Planetarium.GetUniversalTime();
+                    double dT = 86400;
+                    double threshold = 5000;
+                    double MinUT = Planetarium.GetUniversalTime() - 86400;
+                    double MaxUT = Planetarium.GetUniversalTime() + 86400;
+                    double epsilon = 360;
+                    int maxIterations = 25;
+                    int iterationCount = 0;
+                    vessel.orbit.UpdateFromUT(Planetarium.GetUniversalTime()); // We apparently have to update both orbits to the current time to make this work.
+                    orbit.UpdateFromUT(Planetarium.GetUniversalTime());
+                    double closestApproach = Orbit._SolveClosestApproach(vessel.orbit, orbit, ref UT, dT, threshold, MinUT, MaxUT, epsilon, maxIterations, ref iterationCount);
+                    if (closestApproach < 0) continue; // No contact
+                    if (closestApproach > 10000) continue; // 10km should be fine
+
+                    double blockerSize = TargetVessel.GetVesselSize(vessel);
+                    if (closestApproach < (blockerSize + vesselSize) / 2) // We assume the closest approach is calculated from the center of mass, which is why we use /2
+                    {
+                        // Adjust orbit:
+                        double adjustedAngle = (blockerSize / 2 + vesselSize / 2 + 1) * anglePerMeters; // Size of both vessels + 1m
+                        if (adjustmentIterations >= 90) adjustedAngle *= rnd.Next(1, 1000); // Lets get bolder here, time is running out ...
+
+                        // Modifying "orbit.meanAnomalyAtEpoch" works for the actual vessel, but apparently one would have to call some other method as well to updated
+                        // additional internals of the object, because the "_SolveClosestApproach"-function does not register this change, which is why we simply create
+                        // a new, modified orbit:
+                        orbit = CreateOrbit(orbit.inclination, orbit.eccentricity, orbit.semiMajorAxis, orbit.LAN, orbit.argumentOfPeriapsis, orbit.meanAnomalyAtEpoch + adjustedAngle, orbit.epoch, orbit.referenceBody);
+
+                        orbitAdjusted = true;
+                        Debug.Log("[KSTS] adjusting planned orbit by " + adjustedAngle + "° to avoid collision with '" + vessel.vesselName + "' (closest approach " + closestApproach.ToString() + "m @ " + UT.ToString() + " after " + iterationCount + " orbits)");
+                    }
+                }
+                adjustmentIterations++;
+                if (adjustmentIterations >= 100 && orbitAdjusted)
+                {
+                    Debug.LogError("[KSTS] unable to find a safe orbit after " + adjustmentIterations.ToString() + " iterations, the vessels will likely crash");
+                    break;
+                }
+            }
+            while (orbitAdjusted);
             return orbit;
         }
 

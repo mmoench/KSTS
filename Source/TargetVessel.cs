@@ -159,6 +159,35 @@ namespace KSTS
             return traitCount;
         }
 
+        // Returns the maximum extension (in meters) of the given vessel in any direction:
+        public static float GetVesselSize(Vessel vessel)
+        {
+            // I don't know of any easier way to get a vessels actual size (apparently only ShipConstruct objects have a GetVesselSize method and
+            // thus far I was unable to create a ShipConstruct from a Vessel), which is why we have to aproximate the vessels size by adding all
+            // the heights of its individual parts. This only a very rough aproximation, but it should always be at least as high as the actual size:
+            float partHeights = 0;
+            try
+            {
+                foreach (ProtoPartSnapshot pps in vessel.protoVessel.protoPartSnapshots)
+                {
+                    if (KSTS.partDictionary.ContainsKey(pps.partName))
+                    {
+                        // I guess the iconScale is the length of the 1m indicator in the editor next to the icon of the part. This means the inverse will give us the
+                        // the actual height of the part, hopefully no part will be wider than heigh (in this case I hope the part will be displayed rotated in the editor):
+                        float partHeight = 1 / KSTS.partDictionary[pps.partName].iconScale;
+                        partHeights += partHeight;
+                    }
+                }
+                if (partHeights == 0) throw new Exception("height seems to be zero");
+                return partHeights;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("[KSTS] TargetVessel.GetVesselSize(" + vessel.vesselName + "): " + e.ToString());
+                return 1000; // If we can't tell, lets make it 1km to be safe
+            }
+        }
+
         // Adds the given amount of resources to the (unloaded) ship provided:
         public static void AddResources(Vessel vessel, string resourceName, double amount)
         {
@@ -248,9 +277,10 @@ namespace KSTS
 
                 // Add the kerbonaut to the selected part, using the next available seat:
                 int seatIdx = 0;
-                bool seatSwitched = false;
+                bool seatSwitched;
                 do
                 {
+                    seatSwitched = false;
                     foreach (ProtoCrewMember crewMember in targetPart.protoModuleCrew)
                     {
                         if (seatIdx == crewMember.seatIdx) { seatIdx++; seatSwitched = true; }

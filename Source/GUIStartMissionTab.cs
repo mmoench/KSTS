@@ -128,19 +128,11 @@ namespace KSTS
             bool launch = DisplayFooter(currentCost, ready);
             if (launch)
             {
-                if (!GUIOrbitEditor.CheckOrbitClear(orbitEditor.GetOrbit()))
-                {
-                    // The selected orbit is used by another vessel, abort:
-                    ScreenMessages.PostScreenMessage("Selected orbit already in use by another vessel, aborting mission!");
-                }
-                else
-                {
-                    // The orbit is clear, start the mission:
-                    MissionController.StartMission(Mission.CreateDeployment(shipName, payloadShipSelector.payload.template, orbitEditor.GetOrbit(), missionProfileSelector.selectedProfile, crewTransferSelector.crewToDeliver, flagSelector.flagURL));
-                    KSTS.AddFunds(-currentCost);
-                    Reset();
-                    return true;
-                }
+                // Start the mission:
+                MissionController.StartMission(Mission.CreateDeployment(shipName, payloadShipSelector.payload.template, orbitEditor.GetOrbit(), missionProfileSelector.selectedProfile, crewTransferSelector.crewToDeliver, flagSelector.flagURL));
+                KSTS.AddFunds(-currentCost);
+                Reset();
+                return true;
             }
             return false;
         }
@@ -282,6 +274,9 @@ namespace KSTS
                 return false;
             }
             currentCost += payloadShipSelector.payload.template.totalCost;
+            double dryMass = payloadShipSelector.payload.GetDryMass();
+            double totalMass = payloadShipSelector.payload.template.totalMass;
+            int engineersRequired = (int) Math.Ceiling( Math.Log(Math.Ceiling(dryMass / 10)) / Math.Log(2) ) + 1; // One engineer can construct up to 10t, each additional engineer doubles that number
 
             // Target (space-dock) selection:
             if (targetVesselSelector == null)
@@ -289,6 +284,7 @@ namespace KSTS
                 targetVesselSelector = new GUITargetVesselSelector();
                 targetVesselSelector.filterVesselType = VesselType.Station;
                 targetVesselSelector.filterHasCrewTrait = "Engineer"; // There does not seem to be an enum for this.
+                targetVesselSelector.filterHasCrewTraitCount = engineersRequired;
             }
             if (targetVesselSelector.targetVessel == null)
             {
@@ -339,10 +335,9 @@ namespace KSTS
 
             // Calculate and display all the construction-parameters:
             int engineers = TargetVessel.GetCrewCountWithTrait(targetVesselSelector.targetVessel, "Engineer");
-            if (engineers <= 0) throw new Exception("no engineers on target vessel");
+            int scientists = TargetVessel.GetCrewCountWithTrait(targetVesselSelector.targetVessel, "Scientist");
+            if (engineers < engineersRequired) throw new Exception("not enough engineers on target vessel");
             if (missionProfileSelector.selectedProfile.payloadMass <= 0) throw new Exception("mission profile payload too low");
-            double dryMass = payloadShipSelector.payload.GetDryMass();
-            double totalMass = payloadShipSelector.payload.template.totalMass;
             int flights = (int) Math.Ceiling(totalMass / missionProfileSelector.selectedProfile.payloadMass);
             double flightTime = missionProfileSelector.selectedProfile.missionDuration;
             double totalFlightTime = flightTime * flights;
@@ -350,14 +345,20 @@ namespace KSTS
             double totalFlightCost = missionProfileSelector.selectedProfile.launchCost * flights;
 
             currentCost += totalFlightCost;
-            constructionTime = baseConstructionTime / engineers; // half the time per engineer
+            constructionTime = baseConstructionTime;
+            if (scientists > 0) constructionTime = baseConstructionTime / (scientists + 1); // half the time per scientist
             if (totalFlightTime > constructionTime) constructionTime = totalFlightTime;
 
             GUIStyle leftLabel = new GUIStyle(GUI.labelStyle) { stretchWidth = true };
             GUIStyle rightLabel = new GUIStyle(GUI.labelStyle) { stretchWidth = false, alignment = TextAnchor.MiddleRight };
             GUILayout.BeginHorizontal();
             GUILayout.Label("Mass:", leftLabel);
-            GUILayout.Label(totalMass.ToString("#,##0.00t") + " (" + dryMass.ToString("#,##0.00t") + " dry)", rightLabel);
+            GUILayout.Label(totalMass.ToString("#,##0.00t") + " / " + dryMass.ToString("#,##0.00t") + " dry", rightLabel);
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Dock-Capacity (" + engineers.ToString() + " engineer" + (engineers != 1 ? "s" : "") + "):", leftLabel);
+            GUILayout.Label((Math.Pow(2,engineers-1)*10).ToString("#,##0.00t") + " dry", rightLabel);
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
@@ -376,7 +377,7 @@ namespace KSTS
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Total Construction Time (" + engineers.ToString("#,##0") + " engineer" + (engineers > 1 ? "s" : "") + "):", leftLabel);
+            GUILayout.Label("Total Construction Time (" + scientists.ToString() + " scientist" + (scientists != 1 ? "s" : "") + "):", leftLabel);
             GUILayout.Label(GUI.FormatDuration(constructionTime), rightLabel);
             GUILayout.EndHorizontal();
 
