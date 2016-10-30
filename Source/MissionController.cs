@@ -244,6 +244,10 @@ namespace KSTS
                 }
                 else throw new Exception("invalid mission-type '" + missionType.ToString() + "'");
 
+                // Instead of loading and constructing the ship ourselfs ShipConstruction.AssembleForLaunch() seems like the better
+                // option, this however just seems to work while in flight and even then I was unable to get it working correctly
+                // (it switches to the newly created ship and setting an orbit afterwards does not work correctly).
+
                 // In theory it should be enough to simply copy the parts from the ShipConstruct to the ProtoVessel, but
                 // this only seems to work when the saved vessel starts with the root-part and is designed top down from there.
                 // It seems that the root part has to be the first part in the ProtoVessel's parts-list and all other parts have
@@ -342,7 +346,7 @@ namespace KSTS
                 Debug.Log("[KSTS] deployed new ship '" + shipName.ToString() + "' as '" + pv.vesselRef.id.ToString() + "'");
                 ScreenMessages.PostScreenMessage("Vessel '" + shipName.ToString() + "' deployed"); // Popup message to notify the player
                 Vessel newVessel = FlightGlobals.Vessels.Find(x => x.id == pv.vesselID);
-
+                
                 // While each part knows in which stage they are, the vessel has to know how many stages there are in total:
                 newVessel.protoVessel.stage = maxStageOffset + 1; // an offest of 0 would mean that there is only one stage
 

@@ -87,7 +87,7 @@ namespace KSTS
     {
         private string name = "";
         private double value;
-        public double Value { get { return this.value; } }
+        public double Value { get { return this.value; } set { this.textValue = value.ToString(); if (this.TryParseTextValue()) this.UpdateTextField(); } }
         private double minValue = 0;
         private double maxValue = 0;
         private string unit = "";
@@ -129,6 +129,11 @@ namespace KSTS
             return true;
         }
 
+        private void UpdateTextField()
+        {
+            this.textValue = this.value.ToString(this.valueFormat) + this.unit;
+        }
+
         public double Display()
         {
             GUILayout.BeginHorizontal();
@@ -144,8 +149,8 @@ namespace KSTS
 
             if (this.value != this.lastValue)
             {
-                this.textValue = this.value.ToString(this.valueFormat) + this.unit;
                 this.lastValue = this.value;
+                UpdateTextField();
             }
 
             return this.value;

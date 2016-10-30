@@ -9,15 +9,122 @@ namespace KSTS
         private CelestialBody body = null;
         private GUIRichValueSelector altitudeSelector;
         private GUIRichValueSelector inclinationSelector;
+        private GUIRichValueSelector eccentricitySelector;
+        private GUIRichValueSelector semiMajorAxisSelector;
+        private GUIRichValueSelector longitudeOfAscendingNodeSelector;
+        private GUIRichValueSelector argumentOfPeriapsisSelector;
+        private GUIRichValueSelector meanAnomalyAtEpochSelector;
         private MissionProfile missionProfile = null;
+        private int selectedEditorTab = 0;
+        private bool showReferenceVessels;
+        private double referenceVesselEpoch;
 
         public GUIOrbitEditor(MissionProfile missionProfile)
         {
-            // TODO: Maybe add a switch for complex and simple orbits, the complex editor might also include an option to copy an orbit from a reference-object ...
             this.body = FlightGlobals.GetHomeBody();
             this.missionProfile = missionProfile;
-            this.altitudeSelector = new GUIRichValueSelector("Altitude", Math.Floor(this.missionProfile.maxAltitude), "m", Math.Ceiling(this.missionProfile.minAltitude), Math.Floor(this.missionProfile.maxAltitude), true, "#,##0");
-            this.inclinationSelector = new GUIRichValueSelector("Inclination", 0, "°", -180, 180, true, "+0.00;-0.00");
+            Reset();
+        }
+
+        public void Reset()
+        {
+            // Simple orbits:
+            altitudeSelector = new GUIRichValueSelector("Altitude", Math.Floor(this.missionProfile.maxAltitude), "m", Math.Ceiling(this.missionProfile.minAltitude), Math.Floor(this.missionProfile.maxAltitude), true, "#,##0");
+            inclinationSelector = new GUIRichValueSelector("Inclination", 0, "°", -180, 180, true, "+0.000;-0.000");
+
+            // Additional settings for complex orbits:
+            eccentricitySelector = new GUIRichValueSelector("Eccentricity", 0, "", 0, 1, true, "0.000");
+            semiMajorAxisSelector = new GUIRichValueSelector("SMA", Math.Floor(body.Radius + this.missionProfile.maxAltitude), "m", Math.Ceiling(body.Radius + this.missionProfile.minAltitude), Math.Floor(body.Radius + this.missionProfile.maxAltitude), true, "#,##0.0");
+            longitudeOfAscendingNodeSelector = new GUIRichValueSelector("LAN", 0, "°", 0, 360, true, "0.000");
+            argumentOfPeriapsisSelector = new GUIRichValueSelector("AOP", 0, "°", 0, 360, true, "0.000");
+            meanAnomalyAtEpochSelector = new GUIRichValueSelector("MAE", 0, "° rad", -Math.PI, Math.PI, true, "0.000");
+            showReferenceVessels = false;
+            referenceVesselEpoch = 0;
+        }
+
+        public void DisplayEditor()
+        {
+            string[] options = { "Simple Orbit", "Complex Orbit" };
+            int newSelection = GUILayout.Toolbar(selectedEditorTab, options);
+            if (newSelection != selectedEditorTab)
+            {
+                selectedEditorTab = newSelection;
+                Reset();
+            }
+
+            switch (selectedEditorTab)
+            {
+                case 0: // Simple Editpor:
+                    altitudeSelector.Display();
+                    inclinationSelector.Display();
+                    break;
+
+                case 1: // Complex Editor:
+                    // Display a button / list to select a reference vessel:
+                    if (!showReferenceVessels) {
+                        if (GUILayout.Button("Select Reference Vessel", GUI.buttonStyle)) showReferenceVessels = true;
+                    }
+                    else
+                    {
+                        List<string> refVessels = new List<string>();
+                        List<Orbit> refOrbits = new List<Orbit>();
+
+                        // Find applicable vessels:
+                        foreach (Vessel refVessel in FlightGlobals.Vessels)
+                        {
+                            if (refVessel.situation != Vessel.Situations.ORBITING || refVessel.orbit.referenceBody != this.body) continue;
+                            if (refVessel.orbit.semiMajorAxis > Math.Floor(this.missionProfile.maxAltitude)) continue;
+                            refVessels.Add("<b>" + refVessel.vesselName + "</b> (" + refVessel.vesselType.ToString() + ")");
+                            refOrbits.Add(refVessel.orbit);
+                        }
+
+                        GUILayout.Label("<b>Select Reference Vessel:</b>");
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("", new GUIStyle(GUI.labelStyle) { fixedWidth = 10 }); // Just to indent the following list a little bit
+                        int selectedRefVessel = GUILayout.SelectionGrid(-1, refVessels.ToArray(), 1, GUI.selectionGridStyle);
+                        GUILayout.EndHorizontal();
+                        if (selectedRefVessel >= 0)
+                        {
+                            Orbit refOrbit = refOrbits[selectedRefVessel];
+                            inclinationSelector.Value = refOrbit.inclination;
+                            eccentricitySelector.Value = refOrbit.eccentricity;
+                            semiMajorAxisSelector.Value = refOrbit.semiMajorAxis;
+                            longitudeOfAscendingNodeSelector.Value = refOrbit.LAN;
+                            argumentOfPeriapsisSelector.Value = refOrbit.argumentOfPeriapsis;
+                            meanAnomalyAtEpochSelector.Value = refOrbit.meanAnomalyAtEpoch;
+                            referenceVesselEpoch = refOrbit.epoch;
+                            showReferenceVessels = false;
+                        }
+                    }
+
+                    inclinationSelector.Display();
+                    eccentricitySelector.Display();
+                    semiMajorAxisSelector.Display();
+                    longitudeOfAscendingNodeSelector.Display();
+                    argumentOfPeriapsisSelector.Display();
+                    meanAnomalyAtEpochSelector.Display();
+                    break;
+
+                default:
+                    throw new Exception("unexpected option " + selectedEditorTab.ToString());
+            }
+        }
+
+
+        public Orbit GetOrbit()
+        {
+            switch (selectedEditorTab)
+            {
+                case 0: // Simple Editpor:
+                    return CreateSimpleOrbit(this.body, altitudeSelector.Value, inclinationSelector.Value);
+
+                case 1: // Complex Editor:
+                    // Not sure if we should set an epoch when coying over orbital-values from a reference vessel, but it's probably fine to leave it.
+                    return CreateOrbit(inclinationSelector.Value, eccentricitySelector.Value, semiMajorAxisSelector.Value, longitudeOfAscendingNodeSelector.Value, argumentOfPeriapsisSelector.Value, meanAnomalyAtEpochSelector.Value, referenceVesselEpoch, this.body);
+
+                default:
+                    throw new Exception("unexpected option " + selectedEditorTab.ToString());
+            }
         }
 
         public static Orbit CreateSimpleOrbit(CelestialBody body, double altitude, double inclination)
@@ -141,17 +248,6 @@ namespace KSTS
             }
             while (orbitAdjusted);
             return orbit;
-        }
-
-        public Orbit GetOrbit()
-        {
-            return GUIOrbitEditor.CreateSimpleOrbit(this.body, this.altitudeSelector.Value, this.inclinationSelector.Value);
-        }
-
-        public void DisplayEditor()
-        {
-            this.altitudeSelector.Display();
-            this.inclinationSelector.Display();
         }
     }
 }
