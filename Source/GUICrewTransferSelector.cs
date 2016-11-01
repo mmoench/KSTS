@@ -6,7 +6,6 @@ using UnityEngine;
 
 namespace KSTS
 {
-    // TODO: We should allow the player to also select and transport tourists ...
     class GUICrewTransferSelector
     {
         public List<string> crewToDeliver = null;
@@ -30,6 +29,15 @@ namespace KSTS
             this.missionProfile = missionProfile;
             crewToDeliver = new List<string>();
             crewToCollect = new List<string>();
+        }
+
+        // Returns a list of all kerbals on the crew-roster that can be transported:
+        public static List<ProtoCrewMember> GetCrewRoster()
+        {
+            List<ProtoCrewMember> roster = new List<ProtoCrewMember>();
+            foreach (ProtoCrewMember crewMember in HighLogic.CurrentGame.CrewRoster.Kerbals(ProtoCrewMember.KerbalType.Crew, ProtoCrewMember.RosterStatus.Available)) roster.Add(crewMember);
+            foreach (ProtoCrewMember crewMember in HighLogic.CurrentGame.CrewRoster.Kerbals(ProtoCrewMember.KerbalType.Tourist, ProtoCrewMember.RosterStatus.Available)) roster.Add(crewMember);
+            return roster;
         }
 
         // Shows a list of all available crew-members which the player can choose to transport and returns true, if the selection is valid:
@@ -111,7 +119,7 @@ namespace KSTS
                 }
 
                 // Display crew-rowster:
-                foreach (ProtoCrewMember kerbonaut in HighLogic.CurrentGame.CrewRoster.Kerbals(ProtoCrewMember.KerbalType.Crew, ProtoCrewMember.RosterStatus.Available))
+                foreach (ProtoCrewMember kerbonaut in GetCrewRoster())
                 {
                     string details = " <b>" + kerbonaut.name + "</b> (Level " + kerbonaut.experienceLevel.ToString() + " " + kerbonaut.trait.ToString() + ")";
                     if (MissionController.GetKerbonautsMission(kerbonaut.name) != null) GUILayout.Label(" • " + details); // Do not transport kerbals, which are flagged for another mission

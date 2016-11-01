@@ -212,12 +212,12 @@ namespace KSTS
         public static GUIStyle windowStyle = new GUIStyle(HighLogic.Skin.window) { fixedWidth = 450f, fixedHeight = 500f };
         public static bool showGui = false;
 
-        // Styles:
-        public static GUIStyle labelStyle = new GUIStyle("Label");
-        public static GUIStyle buttonStyle = new GUIStyle("Button");
-        public static GUIStyle textFieldStyle = new GUIStyle("TextField");
-        public static GUIStyle scrollStyle = HighLogic.Skin.scrollView;
-        public static GUIStyle selectionGridStyle = new GUIStyle(GUI.buttonStyle) { richText = true, fontStyle = FontStyle.Normal, alignment = TextAnchor.UpperLeft };
+        // Styles (initialized in OnReady):
+        public static GUIStyle labelStyle = null;
+        public static GUIStyle buttonStyle = null;
+        public static GUIStyle textFieldStyle = null;
+        public static GUIStyle scrollStyle = null;
+        public static GUIStyle selectionGridStyle = null;
 
         // Common resources:
         private static ApplicationLauncherButton button = null;
@@ -264,6 +264,17 @@ namespace KSTS
             {
                 var visibleScense = ApplicationLauncher.AppScenes.SPACECENTER | ApplicationLauncher.AppScenes.TRACKSTATION | ApplicationLauncher.AppScenes.FLIGHT;
                 button = ApplicationLauncher.Instance.AddModApplication(GuiOn, GuiOff, null, null, null, null, visibleScense, buttonIcon);
+            }
+
+            // For reasons unknown the styles cannot be initialized in the constructor, only when the application is ready, probably because the
+            // skin needs more time to load:
+            if (ApplicationLauncher.Ready)
+            {
+                labelStyle = new GUIStyle("Label");
+                buttonStyle = new GUIStyle("Button");
+                textFieldStyle = new GUIStyle("TextField");
+                scrollStyle = HighLogic.Skin.scrollView;
+                selectionGridStyle = new GUIStyle(GUI.buttonStyle) { richText = true, fontStyle = FontStyle.Normal, alignment = TextAnchor.UpperLeft };
             }
         }
 

@@ -240,7 +240,7 @@ namespace KSTS
             {
                 // Find the requested Kerbal on the crew-roster:
                 ProtoCrewMember kerbonaut = null;
-                foreach (ProtoCrewMember rosterKerbonaut in HighLogic.CurrentGame.CrewRoster.Kerbals(ProtoCrewMember.KerbalType.Crew, ProtoCrewMember.RosterStatus.Available))
+                foreach (ProtoCrewMember rosterKerbonaut in GUICrewTransferSelector.GetCrewRoster())
                 {
                     if (rosterKerbonaut.name == kerbonautName)
                     {
