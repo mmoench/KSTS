@@ -123,7 +123,7 @@ namespace KSTS
                                 if (GUILayout.Toggle(selectedPayloadAssemblyIds.Contains(payloadAssembly.id), "<b>" + payloadAssembly.name + "</b>"))
                                 {
                                     if (!selectedPayloadAssemblyIds.Contains(payloadAssembly.id)) selectedPayloadAssemblyIds.Add(payloadAssembly.id);
-                                    payloadAssembly.detachmentPart.Highlight(true); // Highligt the selected decoupler, docking-port, etc
+                                    payloadAssembly.detachmentPart.Highlight(Color.blue); // Highligt the selected decoupler, docking-port, etc
                                 }
                                 else
                                 {

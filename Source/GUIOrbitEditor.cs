@@ -73,7 +73,7 @@ namespace KSTS
                         foreach (Vessel refVessel in FlightGlobals.Vessels)
                         {
                             if (refVessel.situation != Vessel.Situations.ORBITING || refVessel.orbit.referenceBody != this.body) continue;
-                            if (refVessel.orbit.semiMajorAxis > Math.Floor(this.missionProfile.maxAltitude)) continue;
+                            if (refVessel.orbit.ApA > Math.Floor(this.missionProfile.maxAltitude)) continue;
                             refVessels.Add("<b>" + refVessel.vesselName + "</b> (" + refVessel.vesselType.ToString() + ")");
                             refOrbits.Add(refVessel.orbit);
                         }
@@ -91,9 +91,14 @@ namespace KSTS
                             semiMajorAxisSelector.Value = refOrbit.semiMajorAxis;
                             longitudeOfAscendingNodeSelector.Value = refOrbit.LAN;
                             argumentOfPeriapsisSelector.Value = refOrbit.argumentOfPeriapsis;
-                            meanAnomalyAtEpochSelector.Value = refOrbit.meanAnomalyAtEpoch;
+
+                            // This should only be between -PI..+PI, but some created vessels like Kerbals to rescue have values 0..+2PI:
+                            if (refOrbit.meanAnomalyAtEpoch > Math.PI) meanAnomalyAtEpochSelector.Value = refOrbit.meanAnomalyAtEpoch - Math.PI * 2;
+                            else meanAnomalyAtEpochSelector.Value = refOrbit.meanAnomalyAtEpoch;
+
                             referenceVesselEpoch = refOrbit.epoch;
                             showReferenceVessels = false;
+
                         }
                     }
 

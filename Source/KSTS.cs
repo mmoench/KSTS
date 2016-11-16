@@ -202,6 +202,49 @@ namespace KSTS
         {
             try
             {
+                /*
+                 * When transporting an available kerbal to a ship or recovering one from orbit, we manipulate the (unloaded) vessel's crew
+                 * as well as the roster-status of the kerbal. This is apparently not expected by KSP's core functionality, because there
+                 * seems to be a secret list of roster-status which is enforced when the game is safed:
+                 * 
+                 * [WRN 15:16:14.678] [ProtoCrewMember Warning]: Crewmember Sierina Kerman found inside a part but status is set as missing. Vessel must have failed to save earlier. Restoring assigned status.
+                 * [WRN 15:17:42.913] [ProtoCrewMember Warning]: Crewmember Sierina Kerman found assigned but no vessels reference him. Sierina Kerman set as missing.
+                 * 
+                 * Afterwards these kerbals would be lost for the player, which is why we have to use the workaround below to revert these
+                 * changes and make sure each kerbal has the correct status. This effectively disables the "missing" status as these kerbals
+                 * will always respawn, but I haven't seen a valid use-case for this thus far, so it is probably fine.
+                 */
+                if (HighLogic.CurrentGame.CrewRoster.Count > 0 && FlightGlobals.Vessels.Count > 0)
+                {
+                    // Build a list of all Kerbals which are assigned to vessels:
+                    List<string> vesselCrewNames = new List<string>();
+                    foreach (Vessel vessel in FlightGlobals.Vessels)
+                    {
+                        foreach (ProtoCrewMember crewMember in TargetVessel.GetCrew(vessel)) vesselCrewNames.Add(crewMember.name);
+                    }
+
+                    // Build a list of all kerbals which we could have manipulated:
+                    List<ProtoCrewMember> kerbals = new List<ProtoCrewMember>();
+                    foreach (ProtoCrewMember kerbal in HighLogic.CurrentGame.CrewRoster.Kerbals(ProtoCrewMember.KerbalType.Crew)) kerbals.Add(kerbal);
+                    foreach (ProtoCrewMember kerbal in HighLogic.CurrentGame.CrewRoster.Kerbals(ProtoCrewMember.KerbalType.Tourist)) kerbals.Add(kerbal);
+
+                    // Check those kerbals against our vessel-list and maybe restore their correct status:
+                    foreach (ProtoCrewMember kerbal in kerbals)
+                    {
+                        if (kerbal.rosterStatus == ProtoCrewMember.RosterStatus.Dead) continue;
+                        if (vesselCrewNames.Contains(kerbal.name) && kerbal.rosterStatus != ProtoCrewMember.RosterStatus.Assigned)
+                        {
+                            Debug.Log("[KSTS] setting kerbal " + kerbal.name + " from " + kerbal.rosterStatus.ToString() + " to Assigned (see code for more info)");
+                            kerbal.rosterStatus = ProtoCrewMember.RosterStatus.Assigned;
+                        }
+                        else if (!vesselCrewNames.Contains(kerbal.name) && kerbal.rosterStatus != ProtoCrewMember.RosterStatus.Available)
+                        {
+                            Debug.Log("[KSTS] setting kerbal " + kerbal.name + " from " + kerbal.rosterStatus.ToString() + " to Available (see code for more info)");
+                            kerbal.rosterStatus = ProtoCrewMember.RosterStatus.Available;
+                        }
+                    }
+                }
+
                 FlightRecoorder.SaveRecordings(node);
                 MissionController.SaveMissions(node);
             }

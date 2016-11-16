@@ -307,6 +307,10 @@ namespace KSTS
                     p.temperature = 1.0;
                     maxStageOffset = Math.Max(p.stageOffset, maxStageOffset); // stageOffset is offset of this part in the staging-order (0..n with -1 meaning not staged)
 
+                    // I'm not sure which of these sets the uid of the part, so we set both to unique values:
+                    p.craftID = (uint)Guid.NewGuid().GetHashCode();
+                    p.flightID = (uint)Guid.NewGuid().GetHashCode();
+
                     // If the KRnD-Mod is installed, make sure that all parts of this newly created ship are set to the lates version:
                     foreach (PartModule module in p.Modules)
                     {
@@ -355,6 +359,9 @@ namespace KSTS
                 {
                     foreach (string kerbonautName in crewToDeliver) TargetVessel.AddCrewMember(newVessel, kerbonautName);
                 }
+
+                // Notify other mods about the new vessel:
+                GameEvents.onVesselCreate.Fire(newVessel);
             }
             catch (Exception e)
             {

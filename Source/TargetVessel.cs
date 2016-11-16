@@ -221,6 +221,9 @@ namespace KSTS
                     }
                 }
 
+                // Notyfy other mods about the modification of the vessel:
+                GameEvents.onVesselWasModified.Fire(vessel);
+
                 // Log Message about the transfer:
                 Debug.Log("[KSTS] added " + (amount - amountToAdd).ToString() + " / " + amount.ToString() + " of " + resourceName + " to " + vessel.vesselName);
                 ScreenMessages.PostScreenMessage(vessel.vesselName + " received " + Math.Round(amount + amountToAdd).ToString() + " of " + resourceName);
@@ -300,6 +303,9 @@ namespace KSTS
                 kerbonaut.flightLog.AddEntry(FlightLog.EntryType.Suborbit, Planetarium.fetch.Home.bodyName);
                 kerbonaut.flightLog.AddEntry(FlightLog.EntryType.Orbit, Planetarium.fetch.Home.bodyName);
 
+                // Notyfy other mods about the modification of the vessel's crew:
+                GameEvents.onVesselCrewWasModified.Fire(vessel);
+
                 Debug.Log("[KSTS] added kerbonaut " + kerbonautName + " to vessel " + vessel.vesselName);
                 ScreenMessages.PostScreenMessage("Kerbonaut " + kerbonautName + " transfered to " + vessel.vesselName);
             }
@@ -347,6 +353,9 @@ namespace KSTS
                 kerbonaut.flightLog.AddEntry(FlightLog.EntryType.Land, Planetarium.fetch.Home.bodyName);
                 kerbonaut.flightLog.AddEntry(FlightLog.EntryType.Recover);
                 kerbonaut.ArchiveFlightLog();
+
+                // Notyfy other mods about the modification of the vessel's crew:
+                GameEvents.onVesselCrewWasModified.Fire(vessel);
 
                 Debug.Log("[KSTS] recovered kerbonaut " + kerbonautName + " from vessel " + vessel.vesselName);
                 ScreenMessages.PostScreenMessage("Kerbonaut " + kerbonautName + " recovered from " + vessel.vesselName);
