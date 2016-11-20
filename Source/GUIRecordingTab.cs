@@ -117,21 +117,35 @@ namespace KSTS
                         else
                         {
                             // Show all detachable subassemblies:
+                            bool selectionChanged = false;
                             foreach (PayloadAssembly payloadAssembly in recording.GetPayloadAssemblies())
                             {
                                 GUILayout.BeginHorizontal();
                                 if (GUILayout.Toggle(selectedPayloadAssemblyIds.Contains(payloadAssembly.id), "<b>" + payloadAssembly.name + "</b>"))
                                 {
-                                    if (!selectedPayloadAssemblyIds.Contains(payloadAssembly.id)) selectedPayloadAssemblyIds.Add(payloadAssembly.id);
-                                    payloadAssembly.detachmentPart.Highlight(Color.blue); // Highligt the selected decoupler, docking-port, etc
+                                    if (!selectedPayloadAssemblyIds.Contains(payloadAssembly.id))
+                                    {
+                                        selectedPayloadAssemblyIds.Add(payloadAssembly.id);
+                                        selectionChanged = true;
+                                    }
                                 }
                                 else
                                 {
-                                    if (selectedPayloadAssemblyIds.Contains(payloadAssembly.id)) selectedPayloadAssemblyIds.Remove(payloadAssembly.id);
-                                    payloadAssembly.detachmentPart.Highlight(false);
+                                    if (selectedPayloadAssemblyIds.Contains(payloadAssembly.id))
+                                    {
+                                        selectedPayloadAssemblyIds.Remove(payloadAssembly.id);
+                                        selectionChanged = true;
+                                    }
                                 }
-                                GUILayout.Label(payloadAssembly.partCount.ToString() + " parts, " + payloadAssembly.mass.ToString("#,##0.00 t") + "   ", new GUIStyle(GUI.labelStyle) { alignment = TextAnchor.MiddleRight });
+                                GUILayout.Label(payloadAssembly.partCount.ToString() + " part" + (payloadAssembly.partCount != 1 ? "s" : "") + ", " + payloadAssembly.mass.ToString("#,##0.00 t") + "   ", new GUIStyle(GUI.labelStyle) { alignment = TextAnchor.MiddleRight });
                                 GUILayout.EndHorizontal();
+                            }
+
+                            // Highlight all selected assemblies (to make sure these don't cancel each other out, we first turn all off and then switch the selected ones on):
+                            if (selectionChanged)
+                            {
+                                foreach (PayloadAssembly payloadAssembly in recording.GetPayloadAssemblies()) payloadAssembly.Highlight(false);
+                                foreach (PayloadAssembly payloadAssembly in recording.GetPayloadAssemblies()) if (selectedPayloadAssemblyIds.Contains(payloadAssembly.id)) payloadAssembly.Highlight(true);
                             }
                         }
                     }

@@ -30,16 +30,38 @@ namespace KSTS
         public double value;
         public int partCount;
         public Part detachmentPart;
+        public List<Part> parts = null; // This is only needed for highlighting the assembly.
         public bool containsInvalidParts = false;
 
         public PayloadAssembly(PayloadAssembly init = null)
         {
+            this.parts = new List<Part>();
             if (init != null)
             {
                 this.mass = init.mass;
                 this.value = init.value;
                 this.partCount = init.partCount;
                 this.containsInvalidParts = init.containsInvalidParts;
+                foreach (Part part in init.parts) this.parts.Add(part);
+            }
+        }
+
+        // Turns the highlighting of the entire subassembly on or off:
+        public void Highlight(bool switchOn)
+        {
+            foreach (Part part in parts)
+            {
+                if (switchOn)
+                {
+                    part.SetHighlightType(Part.HighlightType.AlwaysOn);
+                    part.SetHighlightColor(Color.blue);
+                }
+                else
+                {
+                    part.Highlight(false);
+                    part.SetHighlightType(Part.HighlightType.OnMouseOver);
+                    part.SetHighlightColor();
+                }
             }
         }
     }
@@ -171,6 +193,7 @@ namespace KSTS
                 if (subassembly == null) continue;
                 assembly.mass += subassembly.mass;
                 assembly.partCount += subassembly.partCount;
+                assembly.parts.AddRange(subassembly.parts);
                 assembly.value += subassembly.value;
                 if (subassembly.containsInvalidParts) assembly.containsInvalidParts = true;
             }
@@ -224,6 +247,7 @@ namespace KSTS
             // Add this part's mass for subassemblies higher up the recursion:
             assembly.mass += part.mass + part.resourceMass;
             assembly.partCount += 1;
+            assembly.parts.Add(part);
             assembly.value += partCost;
             return assembly;
         }
@@ -417,6 +441,7 @@ namespace KSTS
             {
                 if (!payloadAssembly.detachmentPart || !this.vessel) continue;
                 if (!this.vessel.parts.Contains(payloadAssembly.detachmentPart)) continue; // The subassembly was probably already detached together with a bigger one.
+                payloadAssembly.Highlight(false); // Turn off highlighting, in case it was on.
 
                 foreach (ModuleDockingNode dockingModule in payloadAssembly.detachmentPart.FindModulesImplementing<ModuleDockingNode>())
                 {

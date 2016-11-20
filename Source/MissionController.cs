@@ -307,9 +307,10 @@ namespace KSTS
                     p.temperature = 1.0;
                     maxStageOffset = Math.Max(p.stageOffset, maxStageOffset); // stageOffset is offset of this part in the staging-order (0..n with -1 meaning not staged)
 
-                    // I'm not sure which of these sets the uid of the part, so we set both to unique values:
-                    p.craftID = (uint)Guid.NewGuid().GetHashCode();
-                    p.flightID = (uint)Guid.NewGuid().GetHashCode();
+                    // Apparently the part's ID from the saved craft is stored in craftID and has to get copied by hand into flightID, which is 0 by default.
+                    // If it is not set, docking won't work and since it is referenced by surface-attachments like struts and fuel lines, it should always
+                    // be the same as in the stored craft:
+                    p.flightID = p.craftID;
 
                     // If the KRnD-Mod is installed, make sure that all parts of this newly created ship are set to the lates version:
                     foreach (PartModule module in p.Modules)
@@ -398,11 +399,11 @@ namespace KSTS
             }
 
             // Display the crew-members we are transporting and collection:
-            if (crewToDeliver != null)
+            if (crewToDeliver != null && crewToDeliver.Count > 0)
             {
                 description += "<b>Crew-Transfer (Outbound):</b> " + String.Join(", ", crewToDeliver.ToArray()).Replace(" Kerman","") + "\n";
             }
-            if (crewToCollect != null)
+            if (crewToCollect != null && crewToCollect.Count > 0)
             {
                 description += "<b>Crew-Transfer (Inbound):</b> " + String.Join(", ", crewToCollect.ToArray()).Replace(" Kerman", "") + "\n";
             }
