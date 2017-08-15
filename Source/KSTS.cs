@@ -3,6 +3,7 @@ using System.Linq;
 using UnityEngine;
 using System.Reflection;
 using System.Collections.Generic;
+using StageRecovery;
 
 namespace KSTS
 {
@@ -141,6 +142,17 @@ namespace KSTS
                     InvokeRepeating("Timer", 1, 1);
                 }
 
+
+
+                if (StageRecoveryAPI.StageRecoveryAvailable)
+                {
+                    StageRecoveryAPI.AddRecoverySuccessEvent((vessel, array, str) =>
+                    {
+                        if (StageRecoveryAPI.StageRecoveryEnabled)
+                            StageRecovered?.Invoke(this, new StageRecoveredEventArgs { Vessel = vessel, FundsRecovered = array[1] });
+                    });
+                }
+
                 // Execute the following code only once:
                 if (KSTS.initialized) return;
                 DontDestroyOnLoad(this);
@@ -151,6 +163,14 @@ namespace KSTS
                 Debug.LogError("[KSTS] Awake(): " + e.ToString());
             }
         }
+
+        public class StageRecoveredEventArgs : EventArgs
+        {
+            public Vessel Vessel { get; set; }
+            public float FundsRecovered { get; set; }
+        }
+
+        public static event EventHandler<StageRecoveredEventArgs> StageRecovered;
 
         public void Timer()
         {

@@ -3,6 +3,7 @@ using System.Linq;
 using UnityEngine;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using StageRecovery;
 
 namespace KSTS
 {
@@ -559,6 +560,18 @@ namespace KSTS
         {
             if (FlightRecoorder.flightRecordings == null) FlightRecoorder.flightRecordings = new Dictionary<string, FlightRecording>();
             if (FlightRecoorder.timerPartResources == null) FlightRecoorder.timerPartResources = new Dictionary<string, Dictionary<string, double>>();
+            KSTS.StageRecovered += KSTS_StageRecovered;
+        }
+
+        private static void KSTS_StageRecovered(object sender, KSTS.StageRecoveredEventArgs e)
+        {
+            foreach(var flightRecording in flightRecordings)
+            {
+                if(flightRecording.Value.status != FlightRecordingStatus.PRELAUNCH)
+                {
+                    flightRecording.Value.launchCost -= e.FundsRecovered;
+                }
+            }
         }
 
         // Removes entries from the recording-list of non-existent vessels (can only happen when someone deletes a vessel
@@ -654,6 +667,8 @@ namespace KSTS
                 Debug.LogError("[KSTS] StartRecording(): " + e.ToString());
             }
         }
+
+
 
         // Aborts a running recording:
         public static void CancelRecording(Vessel vessel)
