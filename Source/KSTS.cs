@@ -101,6 +101,8 @@ namespace KSTS
         private static bool initialized = false;
         public static Dictionary<string, AvailablePart> partDictionary = null;
         public static Dictionary<string, PartResourceDefinition> resourceDictionary = null;
+        public static Dictionary<string, string> parentDictionary = null;
+        private string lastActiveVessel;
 
         // Is called when this Addon is first loaded to initializes all values (eg registration of event-handlers and creation
         // of original-stats library).
@@ -108,7 +110,7 @@ namespace KSTS
         {
             try
             {
-                FlightRecoorder.Initialize();
+                FlightRecorder.Initialize();
                 MissionController.Initialize();
 
                 // Build dictionary of all parts for easier access:
@@ -144,6 +146,7 @@ namespace KSTS
 
 
 
+                parentDictionary = new Dictionary<string, string>();
                 if (StageRecoveryAPI.StageRecoveryAvailable)
                 {
                     StageRecoveryAPI.AddRecoverySuccessEvent((vessel, array, str) =>
@@ -151,6 +154,9 @@ namespace KSTS
                         if (StageRecoveryAPI.StageRecoveryEnabled)
                             StageRecovered?.Invoke(this, new StageRecoveredEventArgs { Vessel = vessel, FundsRecovered = array[1] });
                     });
+
+                    GameEvents.onStageSeparation.Add(new EventData<EventReport>.OnEvent(this.onStageSeparation));
+                    GameEvents.onVesselWasModified.Add(new EventData<Vessel>.OnEvent(this.onVesselModified));
                 }
 
                 // Execute the following code only once:
@@ -162,6 +168,16 @@ namespace KSTS
             {
                 Debug.LogError("[KSTS] Awake(): " + e.ToString());
             }
+        }
+
+        private void onVesselModified(Vessel data)
+        {
+            lastActiveVessel = data.id.ToString();
+        }
+
+        private void onStageSeparation(EventReport data)
+        {
+            parentDictionary.Add(data.origin.vessel.id.ToString(), lastActiveVessel);
         }
 
         public class StageRecoveredEventArgs : EventArgs
@@ -180,7 +196,7 @@ namespace KSTS
                 if (HighLogic.LoadedScene == GameScenes.MAINMENU || HighLogic.LoadedScene == GameScenes.CREDITS || HighLogic.LoadedScene == GameScenes.SETTINGS) return;
 
                 // Call all background-jobs:
-                FlightRecoorder.Timer();
+                FlightRecorder.Timer();
                 MissionController.Timer();
             }
             catch (Exception e)
@@ -265,7 +281,7 @@ namespace KSTS
                     }
                 }
 
-                FlightRecoorder.SaveRecordings(node);
+                FlightRecorder.SaveRecordings(node);
                 MissionController.SaveMissions(node);
             }
             catch (Exception e)
@@ -278,7 +294,7 @@ namespace KSTS
         {
             try
             {
-                FlightRecoorder.LoadRecordings(node);
+                FlightRecorder.LoadRecordings(node);
                 MissionController.LoadMissions(node);
                 GUI.Reset();
             }

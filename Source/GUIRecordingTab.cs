@@ -35,7 +35,7 @@ namespace KSTS
             if (!initialized) Initialize();
             Vessel vessel = FlightGlobals.ActiveVessel;
             FlightRecording recording = null;
-            if (vessel) recording = FlightRecoorder.GetFlightRecording(vessel);
+            if (vessel) recording = FlightRecorder.GetFlightRecording(vessel);
             if (!vessel || recording == null)
             {
                 Reset();
@@ -193,7 +193,7 @@ namespace KSTS
                 if (recording.status == FlightRecordingStatus.PRELAUNCH && GUILayout.Button("Record", GUI.buttonStyle))
                 {
                     // Start Recording:
-                    FlightRecoorder.StartRecording(vessel);
+                    FlightRecorder.StartRecording(vessel);
                 }
 
                 if (recording.CanDeploy() && GUILayout.Button("Release Payload", GUI.buttonStyle))
@@ -217,13 +217,13 @@ namespace KSTS
                 if (recording.CanFinish() && GUILayout.Button("Stop & Save", GUI.buttonStyle))
                 {
                     // Stop recording and create a mission-profile:
-                    FlightRecoorder.SaveRecording(vessel);
+                    FlightRecorder.SaveRecording(vessel);
                 }
 
                 if (recording.status != FlightRecordingStatus.PRELAUNCH && GUILayout.Button("Abort", GUI.buttonStyle))
                 {
                     // Cancel runnig recording:
-                    FlightRecoorder.CancelRecording(vessel);
+                    FlightRecorder.CancelRecording(vessel);
                 }
                 GUILayout.EndHorizontal();
             }
