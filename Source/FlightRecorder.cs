@@ -560,20 +560,29 @@ namespace KSTS
         {
             if (FlightRecorder.flightRecordings == null) FlightRecorder.flightRecordings = new Dictionary<string, FlightRecording>();
             if (FlightRecorder.timerPartResources == null) FlightRecorder.timerPartResources = new Dictionary<string, Dictionary<string, double>>();
-            KSTS.StageRecovered += OnStageRecovered;
         }
 
-        private static void OnStageRecovered(object sender, KSTS.StageRecoveredEventArgs e)
+        // Called by the stage recovery mod, if it is installed:
+        public static void OnStageRecovered(string stageVesselId, double recoveredFunds)
         {
-            string parentKey;
-            if (KSTS.parentDictionary.TryGetValue(e.Vessel.id.ToString(), out parentKey))
-                foreach (var flightRecording in flightRecordings.Where(x => x.Key == parentKey))
+            // Find the parent from which the stage was detached:
+            string vesselId = null;
+            KSTS.stageParentDictionary?.TryGetValue(stageVesselId, out vesselId);
+            if (vesselId != null)
+            {
+                // Find the corresponding recording (if it exists) and reduce the cost of that launch by the
+                // revenue of the recovered stage:
+                foreach (var flightRecording in flightRecordings.Where(x => x.Key == vesselId))
                 {
-                    if(flightRecording.Value.status != FlightRecordingStatus.PRELAUNCH)
+                    if (flightRecording.Value.status != FlightRecordingStatus.PRELAUNCH)
                     {
-                        flightRecording.Value.launchCost -= e.FundsRecovered;
+                        Debug.Log("[KSTS] recovered stage " + stageVesselId + " of vessel " + vesselId + " for " + recoveredFunds.ToString() + " funds");
+                        flightRecording.Value.launchCost -= recoveredFunds;
+                        if (flightRecording.Value.launchCost < 0) flightRecording.Value.launchCost = 0;
                     }
                 }
+
+            }
         }
 
         // Removes entries from the recording-list of non-existent vessels (can only happen when someone deletes a vessel
@@ -588,15 +597,18 @@ namespace KSTS
             // Build list of all existing vessel-IDs:
             List<string> existingVesselIds = FlightGlobals.Vessels.Select(vessel => vessel.id.ToString()).ToList();
 
-            // Create a list of non-existing vessel-IDs and remove them afterwards:
+            // Remove non-existing vessel-IDs from our internal tracking-lists:
             foreach (string removeId in flightRecordings.Keys.Except(existingVesselIds).ToList())
             {
                 Debug.Log("[KSTS] removing flight recording for missing vessel '" + removeId + "'");
                 FlightRecorder.flightRecordings.Remove(removeId);
             }
-            foreach (string removeId in KSTS.parentDictionary.Keys.Except(existingVesselIds).ToList())
+            if (KSTS.stageParentDictionary != null)
             {
-                KSTS.parentDictionary.Remove(removeId);
+                foreach (string removeId in KSTS.stageParentDictionary.Keys.Except(existingVesselIds).ToList())
+                {
+                    KSTS.stageParentDictionary.Remove(removeId);
+                }
             }
         }
 

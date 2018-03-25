@@ -101,8 +101,8 @@ namespace KSTS
         private static bool initialized = false;
         public static Dictionary<string, AvailablePart> partDictionary = null;
         public static Dictionary<string, PartResourceDefinition> resourceDictionary = null;
-        public static Dictionary<string, string> parentDictionary = null;
-        private string lastActiveVessel;
+        public static Dictionary<string, string> stageParentDictionary = null;
+        private string lastActiveVesselId;
 
         // Is called when this Addon is first loaded to initializes all values (eg registration of event-handlers and creation
         // of original-stats library).
@@ -144,15 +144,17 @@ namespace KSTS
                     InvokeRepeating("Timer", 1, 1);
                 }
 
-
-
-                parentDictionary = new Dictionary<string, string>();
-                if (StageRecoveryAPI.StageRecoveryAvailable)
+                // In case the Stage Recovery Mod is installed, add lists and handlers to track the separation and recovery of stages:
+                if (StageRecoveryAPI.StageRecoveryAvailable && KSTS.stageParentDictionary == null)
                 {
+                    Debug.Log("[KSTS] detected stage recovery mod");
+                    stageParentDictionary = new Dictionary<string, string>();
                     StageRecoveryAPI.AddRecoverySuccessEvent((vessel, array, str) =>
                     {
                         if (StageRecoveryAPI.StageRecoveryEnabled)
-                            StageRecovered?.Invoke(this, new StageRecoveredEventArgs { Vessel = vessel, FundsRecovered = array[1] });
+                        {
+                            FlightRecorder.OnStageRecovered(vessel.id.ToString(), array[1]);
+                        }
                     });
 
                     GameEvents.onStageSeparation.Add(new EventData<EventReport>.OnEvent(this.onStageSeparation));
@@ -170,14 +172,18 @@ namespace KSTS
             }
         }
 
+        // Helper-function to allow us to access the vessel-id in the "onStageSeparation" which detached the most recent stage:
         private void onVesselModified(Vessel data)
         {
-            lastActiveVessel = data.id.ToString();
+            lastActiveVesselId = data.id.ToString();
         }
 
+        // Fired for each stage on separation:
         private void onStageSeparation(EventReport data)
         {
-            parentDictionary.Add(data.origin.vessel.id.ToString(), lastActiveVessel);
+            string stageVesselId = data.origin.vessel.id.ToString();
+            Debug.Log("[KSTS] detected stage separation (" + stageVesselId + " from " + lastActiveVesselId + ")");
+            stageParentDictionary.Add(stageVesselId, lastActiveVesselId);
         }
 
         public class StageRecoveredEventArgs : EventArgs
@@ -185,8 +191,6 @@ namespace KSTS
             public Vessel Vessel { get; set; }
             public float FundsRecovered { get; set; }
         }
-
-        public static event EventHandler<StageRecoveredEventArgs> StageRecovered;
 
         public void Timer()
         {
