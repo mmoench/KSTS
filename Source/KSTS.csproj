@@ -64,6 +64,7 @@
     <Compile Include="FlightRecorder.cs" />
     <Compile Include="GUI.cs" />
     <Compile Include="MissionController.cs" />
+    <Compile Include="StageRecoveryAPI.cs" />
     <Compile Include="TargetVessel.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

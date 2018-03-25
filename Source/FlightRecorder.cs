@@ -3,6 +3,7 @@ using System.Linq;
 using UnityEngine;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using StageRecovery;
 
 namespace KSTS
 {
@@ -548,7 +549,7 @@ namespace KSTS
         }
     }
 
-    public class FlightRecoorder
+    public class FlightRecorder
     {
         private static Dictionary<string, FlightRecording> flightRecordings = null;                 // List of all currently running flight-recordings
 
@@ -557,8 +558,22 @@ namespace KSTS
 
         public static void Initialize()
         {
-            if (FlightRecoorder.flightRecordings == null) FlightRecoorder.flightRecordings = new Dictionary<string, FlightRecording>();
-            if (FlightRecoorder.timerPartResources == null) FlightRecoorder.timerPartResources = new Dictionary<string, Dictionary<string, double>>();
+            if (FlightRecorder.flightRecordings == null) FlightRecorder.flightRecordings = new Dictionary<string, FlightRecording>();
+            if (FlightRecorder.timerPartResources == null) FlightRecorder.timerPartResources = new Dictionary<string, Dictionary<string, double>>();
+            KSTS.StageRecovered += OnStageRecovered;
+        }
+
+        private static void OnStageRecovered(object sender, KSTS.StageRecoveredEventArgs e)
+        {
+            string parentKey;
+            if (KSTS.parentDictionary.TryGetValue(e.Vessel.id.ToString(), out parentKey))
+                foreach (var flightRecording in flightRecordings.Where(x => x.Key == parentKey))
+                {
+                    if(flightRecording.Value.status != FlightRecordingStatus.PRELAUNCH)
+                    {
+                        flightRecording.Value.launchCost -= e.FundsRecovered;
+                    }
+                }
         }
 
         // Removes entries from the recording-list of non-existent vessels (can only happen when someone deletes a vessel
@@ -571,40 +586,38 @@ namespace KSTS
             if (FlightGlobals.Vessels.Count == 0) return;
 
             // Build list of all existing vessel-IDs:
-            List<string> vesselIds = new List<string>();
-            foreach (Vessel vessel in FlightGlobals.Vessels) vesselIds.Add(vessel.id.ToString());
+            List<string> existingVesselIds = FlightGlobals.Vessels.Select(vessel => vessel.id.ToString()).ToList();
 
             // Create a list of non-existing vessel-IDs and remove them afterwards:
-            List<string> removeIds = new List<string>();
-            foreach (KeyValuePair<string, FlightRecording> item in FlightRecoorder.flightRecordings)
-            {
-                if (!vesselIds.Contains(item.Key)) removeIds.Add(item.Key);
-            }
-            foreach (string removeId in removeIds)
+            foreach (string removeId in flightRecordings.Keys.Except(existingVesselIds).ToList())
             {
                 Debug.Log("[KSTS] removing flight recording for missing vessel '" + removeId + "'");
-                FlightRecoorder.flightRecordings.Remove(removeId);
+                FlightRecorder.flightRecordings.Remove(removeId);
+            }
+            foreach (string removeId in KSTS.parentDictionary.Keys.Except(existingVesselIds).ToList())
+            {
+                KSTS.parentDictionary.Remove(removeId);
             }
         }
 
         public static void LoadRecordings(ConfigNode node)
         {
-            FlightRecoorder.flightRecordings.Clear();
+            FlightRecorder.flightRecordings.Clear();
             ConfigNode flightRecorderNode = node.GetNode("FlightRecorder");
             if (flightRecorderNode == null) return;
 
             foreach (ConfigNode flightRecordingNode in flightRecorderNode.GetNodes())
             {
-                FlightRecoorder.flightRecordings.Add(flightRecordingNode.name, FlightRecording.CreateFromConfigNode(flightRecordingNode));
+                FlightRecorder.flightRecordings.Add(flightRecordingNode.name, FlightRecording.CreateFromConfigNode(flightRecordingNode));
             }
 
-            FlightRecoorder.CollectGarbage(); // Might not work as expected in KSP 1.2, so we added this also to the timer-function.
+            FlightRecorder.CollectGarbage(); // Might not work as expected in KSP 1.2, so we added this also to the timer-function.
         }
 
         public static void SaveRecordings(ConfigNode node)
         {
             ConfigNode flightRecorderNode = node.AddNode("FlightRecorder");
-            foreach (KeyValuePair<string, FlightRecording> item in FlightRecoorder.flightRecordings)
+            foreach (KeyValuePair<string, FlightRecording> item in FlightRecorder.flightRecordings)
             {
                 flightRecorderNode.AddNode(item.Value.CreateConfigNode(item.Key));
             }
@@ -616,7 +629,7 @@ namespace KSTS
             FlightRecording recording = null;
             try
             {
-                if (FlightRecoorder.flightRecordings.TryGetValue(vessel.id.ToString(), out recording))
+                if (FlightRecorder.flightRecordings.TryGetValue(vessel.id.ToString(), out recording))
                 {
                     // Update with the current values of the vessel:
                     recording.Update(vessel);
@@ -644,9 +657,9 @@ namespace KSTS
         {
             try
             {
-                if (FlightRecoorder.flightRecordings.ContainsKey(vessel.id.ToString())) throw new Exception("duplicate recording for vessel '" + vessel.id.ToString() + "'");
+                if (FlightRecorder.flightRecordings.ContainsKey(vessel.id.ToString())) throw new Exception("duplicate recording for vessel '" + vessel.id.ToString() + "'");
                 FlightRecording recording = new FlightRecording(vessel);
-                FlightRecoorder.flightRecordings.Add(vessel.id.ToString(), recording);
+                FlightRecorder.flightRecordings.Add(vessel.id.ToString(), recording);
                 recording.status = FlightRecordingStatus.ASCENDING;
             }
             catch (Exception e)
@@ -655,13 +668,15 @@ namespace KSTS
             }
         }
 
+
+
         // Aborts a running recording:
         public static void CancelRecording(Vessel vessel)
         {
             try
             {
-                if (!FlightRecoorder.flightRecordings.ContainsKey(vessel.id.ToString())) throw new Exception("vessel '" + vessel.id.ToString() + "' not found in recording-list");
-                FlightRecoorder.flightRecordings.Remove(vessel.id.ToString());
+                if (!FlightRecorder.flightRecordings.ContainsKey(vessel.id.ToString())) throw new Exception("vessel '" + vessel.id.ToString() + "' not found in recording-list");
+                FlightRecorder.flightRecordings.Remove(vessel.id.ToString());
             }
             catch (Exception e)
             {
@@ -675,11 +690,11 @@ namespace KSTS
             try
             {
                 FlightRecording recording;
-                if (!FlightRecoorder.flightRecordings.TryGetValue(vessel.id.ToString(), out recording)) return;
+                if (!FlightRecorder.flightRecordings.TryGetValue(vessel.id.ToString(), out recording)) return;
                 if (!recording.CanFinish()) return;
 
                 MissionController.CreateMissionProfile(vessel, recording);
-                FlightRecoorder.flightRecordings.Remove(vessel.id.ToString());
+                FlightRecorder.flightRecordings.Remove(vessel.id.ToString());
             }
             catch (Exception e)
             {
@@ -693,7 +708,7 @@ namespace KSTS
             try
             {
                 // Maybe remove old, invalid running recordings:
-                FlightRecoorder.CollectGarbage();
+                FlightRecorder.CollectGarbage();
 
                 // Check if we are on an vessel which is recording a flight:
                 Vessel vessel = FlightGlobals.ActiveVessel;
@@ -701,11 +716,11 @@ namespace KSTS
                 FlightRecording recording = GetFlightRecording(vessel);
                 if (recording == null) return;
 
-                if (vessel.id.ToString() != FlightRecoorder.timerVesselId)
+                if (vessel.id.ToString() != FlightRecorder.timerVesselId)
                 {
                     // The vessel has changed, reset all variables from the last timer-tick:
-                    FlightRecoorder.timerVesselId = vessel.id.ToString();
-                    FlightRecoorder.timerPartResources.Clear();
+                    FlightRecorder.timerVesselId = vessel.id.ToString();
+                    FlightRecorder.timerPartResources.Clear();
                 }
 
                 // Check all parts, if something has changed which makes the part unusable for payload-deployments:
@@ -733,11 +748,11 @@ namespace KSTS
                         if (!KSTS.resourceDictionary.TryGetValue(resourceId, out resourceDefinition)) continue;
                         if (resourceDefinition.density <= 0) continue; // We only care about resources with mass, skipping electricity and such.
 
-                        if (!FlightRecoorder.timerPartResources.ContainsKey(partId)) FlightRecoorder.timerPartResources.Add(partId, new Dictionary<string, double>());
+                        if (!FlightRecorder.timerPartResources.ContainsKey(partId)) FlightRecorder.timerPartResources.Add(partId, new Dictionary<string, double>());
                         double lastAmount;
-                        if (!FlightRecoorder.timerPartResources[partId].TryGetValue(resourceId, out lastAmount))
+                        if (!FlightRecorder.timerPartResources[partId].TryGetValue(resourceId, out lastAmount))
                         {
-                            FlightRecoorder.timerPartResources[partId].Add(resourceId, resource.amount);
+                            FlightRecorder.timerPartResources[partId].Add(resourceId, resource.amount);
                         }
                         else
                         {
