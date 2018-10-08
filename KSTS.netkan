@@ -18,5 +18,12 @@
             "find" : "KSTS",
             "install_to" : "GameData"
         }
+    ],
+    "conflicts": [
+        { "name": "ModularFuelTanks" },
+        { "name": "USI-LS" }
+    ],
+    "supports": [
+        { "name": "StageRecovery" }
     ]
 }
